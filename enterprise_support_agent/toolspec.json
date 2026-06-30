@@ -1,0 +1,91 @@
+{
+  "tools": [
+    {
+      "name": "zendesk_list_open_tickets",
+      "description": "Returns a list of currently active open ticket IDs from the support queue.",
+      "annotations": {
+        "title": "List Open Zendesk Tickets",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "zendesk_get_ticket",
+      "description": "Fetches a Zendesk customer support ticket by its ID.",
+      "annotations": {
+        "title": "Get Zendesk Ticket",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "salesforce_get_customer_context",
+      "description": "Retrieves account tier, contract value, and account owner from Salesforce.",
+      "annotations": {
+        "title": "Get Salesforce Customer Context",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "postgres_get_sync_telemetry",
+      "description": "Queries the operational telemetry database (PostgreSQL) for JVM sync logs.",
+      "annotations": {
+        "title": "Get Connector Sync Telemetry",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "workday_get_oncall_engineer",
+      "description": "Queries Workday for the current engineering on-call personnel.",
+      "annotations": {
+        "title": "Get On-Call Engineer",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "jira_create_bug_ticket",
+      "description": "Creates a Jira Bug ticket and returns the generated issue ID.",
+      "annotations": {
+        "title": "Create Jira Bug Ticket",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "postgres_update_connector_memory",
+      "description": "Updates JVM heap memory allocation for a connector sync worker.",
+      "annotations": {
+        "title": "Update Connector Heap Memory",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "enterprise_trigger_connector_sync",
+      "description": "Manually forces a sync retry for a database connector worker.",
+      "annotations": {
+        "title": "Trigger Connector Sync",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "zendesk_update_ticket",
+      "description": "Writes a comment or updates the support status of a Zendesk ticket.",
+      "annotations": {
+        "title": "Update Zendesk Ticket",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    }
+  ]
+}

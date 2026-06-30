@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scenario B — Prompt Injection Containment</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1020; --panel: #11172e; --text: #e6e9ef; --muted: #98a2b3;
+    --accent: #4f8cff; --accent-2: #34d399; --danger: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  header { padding: 24px 32px; background: linear-gradient(135deg, #2a1620, #0b1020); border-bottom: 1px solid #4d2230; }
+  header h1 { margin: 0 0 8px 0; font-size: 22px; font-weight: 600; }
+  header .subtitle { color: var(--muted); font-size: 14px; }
+  header .badges { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge { background: #1f2a44; color: var(--accent); border: 1px solid #2c3a5d; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+  .badge.danger { color: var(--danger); border-color: #5a2020; }
+  .badge.success { color: var(--accent-2); border-color: #1f4a3a; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 32px 64px; }
+  .callout { background: rgba(239, 68, 68, 0.08); border-left: 3px solid var(--danger); border-radius: 4px; padding: 12px 18px; margin-bottom: 24px; color: #fecaca; font-size: 14px; }
+  .callout strong { color: #fff; }
+  .diagram-wrap { background: var(--panel); border: 1px solid #22304d; border-radius: 12px; padding: 24px; margin-bottom: 24px; overflow-x: auto; }
+  .diagram-wrap .mermaid { background: #fff; border-radius: 8px; padding: 20px; min-height: 440px; }
+  .flow-table { background: var(--panel); border: 1px solid #22304d; border-radius: 12px; padding: 18px 22px; margin-bottom: 24px; }
+  .flow-table h2 { margin: 0 0 12px 0; font-size: 15px; color: var(--accent); }
+  .flow-table table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .flow-table th, .flow-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #1d2640; vertical-align: top; }
+  .flow-table th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .flow-table tr:last-child td { border-bottom: none; }
+  .flow-table .step { color: var(--accent); font-weight: 600; width: 50px; }
+  .flow-table tr.blocked .step { color: var(--danger); }
+  .flow-table tr.blocked td { background: rgba(239, 68, 68, 0.06); }
+  footer { color: var(--muted); text-align: center; font-size: 12px; padding: 24px; }
+  code { background:#1f2a44; padding:2px 6px; border-radius:4px; font-size:.92em; color:#d9e2ff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Scenario B — Prompt Injection Containment</h1>
+  <div class="subtitle">High-level components and request flow when the agent encounters a malicious ticket.</div>
+  <div class="badges">
+    <span class="badge">Gemini 3.5 Flash</span>
+    <span class="badge danger">Model Armor BLOCK — app + network layer</span>
+    <span class="badge success">Kickoff: make smoke-test / Playground</span>
+  </div>
+</header>
+
+<main>
+  <div class="callout">
+    <strong>The lesson:</strong> the agent did the right thing — it followed the runbook with the legitimate customer email. <strong>The platform still blocked its tool calls</strong> because the malicious payload was sitting in the conversation context, at two independent layers (the agent's own callbacks, and — once Agent Gateway egress is set up — the network layer too). Defense in depth: the agent is not responsible for security; the platform is.
+  </div>
+
+  <div class="diagram-wrap">
+    <pre class="mermaid">
+flowchart LR
+  classDef user    fill:#dbeafe,stroke:#1e40af,color:#0b1d3a,stroke-width:2px
+  classDef agent   fill:#ede9fe,stroke:#6d28d9,color:#2e1065,stroke-width:2px
+  classDef gcp     fill:#fef3c7,stroke:#b45309,color:#78350f,stroke-width:2px
+  classDef armor   fill:#dc2626,stroke:#7f1d1d,color:#ffffff,stroke-width:3px
+  classDef ext     fill:#f1f5f9,stroke:#475569,color:#0f172a,stroke-width:2px
+  classDef never   fill:#fee2e2,stroke:#ef4444,color:#7f1d1d,stroke-dasharray:6 4,stroke-width:2px
+  classDef obs     fill:#d1fae5,stroke:#047857,color:#064e3b,stroke-width:2px
+
+  USER["Kickoff<br/>make smoke-test / Playground"]:::user
+  AGENT["Multi-agent System<br/>(context poisoned)"]:::agent
+  SKILL["Skill Registry"]:::gcp
+  ARMORAPP["Model Armor — APP layer<br/>BLOCKS HERE (1st chance)"]:::armor
+  AGW["Agent Gateway — egress<br/>Model Armor — NETWORK layer<br/>BLOCKS HERE TOO (2nd chance)"]:::armor
+  MCP["MCP Gateway<br/>(Cloud Run)"]:::gcp
+  ZD["Zendesk<br/>(malicious ticket)"]:::ext
+  SF["Salesforce<br/>NEVER CALLED"]:::never
+  OBS["Security tab<br/>(Model Armor + SCC findings)"]:::obs
+
+  USER -->|"1. Submit ticket"| AGENT
+  AGENT -->|"2. Load runbook"| SKILL
+  AGENT -->|"3. Fetch ticket"| MCP
+  MCP --> ZD
+  ZD -. "4. Malicious payload<br/>now in agent context" .-> AGENT
+  AGENT -->|"5. Follows runbook<br/>(legit Salesforce call)"| ARMORAPP
+  ARMORAPP -->|"6. BLOCKED<br/>poisoned context"| AGENT
+  AGENT -. "would have gone here<br/>if app layer missed it" .-> AGW
+  AGW -.->|"Salesforce<br/>never reached"| SF
+  ARMORAPP -.->|"7. Audit row"| OBS
+  AGW -.->|"Audit row"| OBS
+  AGENT -->|"8. SECURITY EXCEPTION"| USER
+    </pre>
+  </div>
+
+  <div class="flow-table">
+    <h2>What happens, end-to-end — and where to watch it in Console</h2>
+    <table>
+      <thead><tr><th>Step</th><th>What</th><th>Watch in Console</th></tr></thead>
+      <tbody>
+        <tr><td class="step">1</td><td>A ticket whose description contains an injected instruction is submitted.</td><td>Playground or Traces tab</td></tr>
+        <tr><td class="step">2</td><td>Agent pulls the runbook from Skill Registry — same as the happy path.</td><td>Traces tab</td></tr>
+        <tr><td class="step">3</td><td>Agent fetches the Zendesk ticket. The malicious payload now lives in the agent's context.</td><td>Traces tab → event content</td></tr>
+        <tr><td class="step">4</td><td>The agent <b>follows the runbook correctly</b> — uses the legitimate sender email, plans a normal Phase 2 investigation. It does <b>not</b> fall for the injection.</td><td>Traces tab → reasoning text</td></tr>
+        <tr class="blocked"><td class="step">5</td><td><b>Model Armor scans the tool call anyway</b> and refuses to dispatch — app-layer callback first, network-layer Agent Gateway as a second, independent backstop. The platform doesn't trust any tool call from a poisoned context.</td><td>Security tab — look for two findings, not one, if Agent Gateway is set up</td></tr>
+        <tr><td class="step">6</td><td>A structured audit row lands in Cloud Logging with the matched filter and trace ID.</td><td>Security tab (or Cloud Logging directly)</td></tr>
+        <tr><td class="step">7</td><td>The agent halts and returns the verbatim SECURITY EXCEPTION.</td><td>Playground response / Traces tab final event</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<footer>Enterprise Support Agent — L400 demo.</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "default",
+    securityLevel: "loose",
+    flowchart: { curve: "basis", useMaxWidth: true, htmlLabels: true, padding: 20 }
+  });
+</script>
+</body>
+</html>

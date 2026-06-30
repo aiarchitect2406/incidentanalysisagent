@@ -1,0 +1,127 @@
+%% L400 Enterprise Support Agent — Reference Architecture
+%% Modeled on https://docs.cloud.google.com/architecture/multiagent-ai-system
+%% with components named per the Gemini Enterprise Agent Platform (GEAP) taxonomy.
+%% Every box here corresponds to a real wired path in code/config — see
+%% docs/L400-playbook.md and docs/agent-gateway-setup.md for what's verified
+%% vs. what's still a manual setup step (Agent Gateway resource creation).
+flowchart LR
+
+  %% ---------- KICKOFF (programmatic) ----------
+  subgraph USER["Kickoff"]
+    direction TB
+    DEV["Developer / Support Engineer<br/>(make smoke-test, live_view.py,<br/>or Agent Registry Playground tab)"]
+    WEB["Gemini Enterprise Web App<br/>(future)"]
+  end
+
+  %% ---------- COORDINATOR ----------
+  subgraph COORD["Coordinator"]
+    TRIAGE["triage_agent<br/>(intent routing +<br/>PreloadMemoryTool +<br/>generate_memories_callback)"]
+  end
+
+  %% ---------- SUB-AGENTS ----------
+  subgraph SUBS["Sub-agents"]
+    direction TB
+    REM["remediation_agent<br/>(runbook execution)"]
+    NOTIF["notification_agent<br/>(only owner of zendesk_update_ticket)"]
+  end
+
+  %% ---------- BUILD PILLAR ----------
+  subgraph BUILD["GEAP — Build pillar"]
+    direction TB
+    SKILL["Skill Registry<br/>incident-escalator (rev N)"]
+    ADK["ADK >=1.34.3<br/>GCPSkillRegistry • McpToolset<br/>(GCPSkillRegistry needs >=1.34.0 —<br/>pin below that and it silently<br/>falls back to on-disk SKILL.md)"]
+  end
+
+  %% ---------- SCALE PILLAR ----------
+  subgraph SCALE["GEAP — Scale pillar"]
+    direction TB
+    RUNTIME["Agent Runtime<br/>(managed AdkApp container)"]
+    SESS["Agent Platform Sessions<br/>(short-term; Agent Runtime default,<br/>no extra wiring)"]
+    MEM["Memory Bank<br/>(long-term; Agent Runtime default —<br/>agent must call it: PreloadMemoryTool<br/>+ add_session_to_memory)"]
+  end
+
+  %% ---------- MODEL + ARMOR (app layer) ----------
+  subgraph MODEL["Model"]
+    direction TB
+    ARMOR["Model Armor — APP layer<br/>before_model_callback<br/>before_tool_callback"]
+    GEMINI["Gemini 3.5 Flash<br/>(GEAP managed)"]
+  end
+
+  %% ---------- TOOLS / MCP ----------
+  subgraph TOOLS["Tools — MCP (Streamable HTTP)"]
+    direction TB
+    MCPCLI["MCP Client<br/>(per sub-agent)"]
+    MCPGW["Cloud Run: sre-mcp-gateway<br/>--no-allow-unauthenticated"]
+    BACKENDS["Mocked enterprise APIs<br/>Zendesk • Salesforce • Postgres • Workday • Jira"]
+  end
+
+  %% ---------- GOVERN BAND ----------
+  subgraph GOVERN["GEAP — Govern (cross-cutting)"]
+    direction LR
+    AID["Agent Identity<br/>SPIFFE principal, per agent<br/>(identity_type=AGENT_IDENTITY —<br/>NOT a shared service account)"]
+    AGW["Agent Gateway — egress<br/>mTLS via Agent Identity +<br/>Model Armor (NETWORK layer)<br/>(see docs/agent-gateway-setup.md)"]
+    AREG["Agent Registry<br/>sre-mcp-gateway entry"]
+    IAM["IAM<br/>roles/run.invoker → agent identity<br/>roles/iap.egressor → agent identity"]
+    SECRETS["Secret Manager<br/>mcp-gateway-url[-LAB_USER_ID]"]
+  end
+
+  %% ---------- OPTIMIZE BAND ----------
+  subgraph OPT["GEAP — Optimize (cross-cutting)"]
+    direction LR
+    TRACE["Cloud Trace"]
+    LOGS["Cloud Logging<br/>(structured events)"]
+    OBS["Agent Registry tabs:<br/>Observability • Traces •<br/>Security • Sessions • Memories"]
+    TOPO["Topology view"]
+    EVAL["Continuous Evaluation"]
+  end
+
+  %% ---------- FLOW ----------
+  DEV --> TRIAGE
+  WEB -.future.-> TRIAGE
+  TRIAGE --> REM
+  REM --> NOTIF
+
+  REM -- "load_skill" --> SKILL
+  REM --> ADK
+  ADK --> RUNTIME
+  NOTIF --> RUNTIME
+  TRIAGE --> RUNTIME
+  RUNTIME --- SESS
+  RUNTIME --- MEM
+
+  REM --> ARMOR
+  NOTIF --> ARMOR
+  TRIAGE --> ARMOR
+  ARMOR --> GEMINI
+
+  REM --> MCPCLI
+  NOTIF --> MCPCLI
+  MCPCLI -- "default: ID token, audience=run URL" --> MCPGW
+  MCPCLI -. "if AGENT_GATEWAY_URL set: via egress gateway instead" .-> AGW
+  AGW --> MCPGW
+  MCPGW --> BACKENDS
+  MCPGW -.discoverable.-> AREG
+  AGW -.policy lookup.-> AREG
+  AID -. "authenticates" .-> AGW
+  AID -. "ADC resolves to this identity's bound token" .-> MCPCLI
+
+  %% Cross-cutting bands touch every layer
+  GOVERN -. enforces .- RUNTIME
+  GOVERN -. enforces .- MCPGW
+  GOVERN -. enforces .- TRIAGE
+  OPT -. observes .- RUNTIME
+  OPT -. observes .- MCPGW
+  OPT -. observes .- ARMOR
+  OPT -. observes .- AGW
+
+  classDef build fill:#e8f0fe,stroke:#1a73e8,color:#0b1d3a
+  classDef scale fill:#fef7e0,stroke:#f29900,color:#3c2a00
+  classDef govern fill:#fce8e6,stroke:#d93025,color:#3c1414
+  classDef optimize fill:#e6f4ea,stroke:#188038,color:#0f3a17
+  classDef agent fill:#ffffff,stroke:#5f6368,color:#202124,stroke-width:2px
+
+  class BUILD,SKILL,ADK build
+  class SCALE,RUNTIME,SESS,MEM scale
+  class GOVERN,AID,AGW,AREG,IAM,SECRETS,ARMOR govern
+  class OPT,TRACE,LOGS,OBS,TOPO,EVAL optimize
+  class TRIAGE,REM,NOTIF agent

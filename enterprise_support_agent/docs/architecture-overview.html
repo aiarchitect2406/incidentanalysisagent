@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Architecture Overview — Enterprise Support Agent on GEAP</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #11172e;
+    --text: #e6e9ef;
+    --muted: #98a2b3;
+    --build: #4f8cff;
+    --scale: #fbbf24;
+    --govern: #ef4444;
+    --optimize: #34d399;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    padding: 24px 32px;
+    background: linear-gradient(135deg, #1a1f3a, #0b1020);
+    border-bottom: 1px solid #22304d;
+  }
+  header h1 { margin: 0 0 8px 0; font-size: 22px; font-weight: 600; }
+  header .subtitle { color: var(--muted); font-size: 14px; }
+  main {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 24px 32px 64px;
+  }
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .pillar {
+    padding: 14px 16px;
+    background: var(--panel);
+    border-radius: 8px;
+    border-top: 3px solid;
+  }
+  .pillar h3 { margin: 0 0 6px 0; font-size: 14px; }
+  .pillar p { margin: 0; font-size: 12px; color: var(--muted); }
+  .pillar.build    { border-color: var(--build); }    .pillar.build h3    { color: var(--build); }
+  .pillar.scale    { border-color: var(--scale); }    .pillar.scale h3    { color: var(--scale); }
+  .pillar.govern   { border-color: var(--govern); }   .pillar.govern h3   { color: var(--govern); }
+  .pillar.optimize { border-color: var(--optimize); } .pillar.optimize h3 { color: var(--optimize); }
+  .diagram-wrap {
+    background: var(--panel);
+    border: 1px solid #22304d;
+    border-radius: 12px;
+    padding: 24px;
+    overflow-x: auto;
+  }
+  .diagram-wrap .mermaid {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  footer {
+    color: var(--muted);
+    text-align: center;
+    font-size: 12px;
+    padding: 24px;
+  }
+  code { background:#1f2a44; padding:2px 6px; border-radius:4px; font-size:.92em; color:#d9e2ff; }
+  @media (max-width: 900px) { .pillars { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Architecture Overview — Enterprise Support Agent on GEAP</h1>
+  <div class="subtitle">Coordinator + sub-agents pattern. Four GEAP pillars composed end-to-end. Modeled on Google's published <em>multiagent-ai-system</em> reference architecture.</div>
+</header>
+
+<main>
+  <div class="pillars">
+    <div class="pillar build">
+      <h3>Build</h3>
+      <p>ADK · Skill Registry · MCP</p>
+    </div>
+    <div class="pillar scale">
+      <h3>Scale</h3>
+      <p>Agent Runtime · Sessions (short-term) · Memory Bank (long-term)</p>
+    </div>
+    <div class="pillar govern">
+      <h3>Govern</h3>
+      <p>Agent Identity · Agent Gateway · Agent Registry · Model Armor (app + network layer)</p>
+    </div>
+    <div class="pillar optimize">
+      <h3>Optimize</h3>
+      <p>Cloud Trace · Cloud Logging · Observability · Topology · Eval</p>
+    </div>
+  </div>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart LR
+  classDef user      fill:#e6e9ef,stroke:#5f6368,color:#202124
+  classDef coord     fill:#e8f0fe,stroke:#1a73e8,color:#0b1d3a,stroke-width:2px
+  classDef sub       fill:#fff,stroke:#5f6368,color:#202124,stroke-width:2px
+  classDef build     fill:#e8f0fe,stroke:#1a73e8,color:#0b1d3a
+  classDef scale     fill:#fef7e0,stroke:#f29900,color:#3c2a00
+  classDef govern    fill:#fce8e6,stroke:#d93025,color:#3c1414
+  classDef optimize  fill:#e6f4ea,stroke:#188038,color:#0f3a17
+  classDef tool      fill:#f1f3f4,stroke:#5f6368,color:#202124
+
+  subgraph USER["Kickoff (programmatic)"]
+    KICK["make smoke-test /<br/>Agent Registry Playground tab"]
+  end
+
+  subgraph COORD["Coordinator"]
+    TRIAGE["triage_agent<br/>(PreloadMemoryTool +<br/>generate_memories_callback)"]
+  end
+
+  subgraph SUBS["Sub-agents (least privilege)"]
+    direction TB
+    REM["remediation_agent<br/>(read + remediation tools)"]
+    NOTIF["notification_agent<br/>(zendesk_update_ticket only)"]
+  end
+
+  subgraph BUILD["Build pillar"]
+    SKILL["Skill Registry<br/>incident-escalator"]
+  end
+
+  subgraph SCALE["Scale pillar"]
+    direction TB
+    RUNTIME["Agent Runtime<br/>(AdkApp)"]
+    SESS["Sessions — short-term<br/>(Agent Runtime default)"]
+    MEM["Memory Bank — long-term<br/>(Agent Runtime default;<br/>agent must call it — see triage_agent)"]
+  end
+
+  subgraph MODEL["Model"]
+    direction TB
+    ARMORAPP["Model Armor — app layer<br/>before_model_callback<br/>before_tool_callback"]
+    GEMINI["Gemini 3.5 Flash<br/>(global endpoint)"]
+  end
+
+  subgraph GOVERN["Govern pillar"]
+    direction TB
+    AID["Agent Identity<br/>SPIFFE principal,<br/>not a shared service account"]
+    AGW["Agent Gateway — egress<br/>mTLS via Agent Identity +<br/>Model Armor (network layer)"]
+    AREG["Agent Registry<br/>sre-mcp-gateway entry"]
+  end
+
+  subgraph TOOLS["Tools — MCP (Streamable HTTP / SSE)"]
+    direction TB
+    MCPGW["Cloud Run<br/>sre-mcp-gateway"]
+    BACKENDS["Mocked enterprise APIs<br/>Zendesk · Salesforce · Postgres · Workday · Jira"]
+  end
+
+  subgraph OPT["Optimize (cross-cutting)"]
+    direction LR
+    TRACE["Cloud Trace"]
+    LOGS["Cloud Logging"]
+    OBS["Observability tab"]
+  end
+
+  KICK --> TRIAGE
+  TRIAGE --> REM
+  REM --> NOTIF
+
+  REM --"load_skill"--> SKILL
+  TRIAGE --- RUNTIME
+  RUNTIME --- SESS
+  RUNTIME --- MEM
+
+  TRIAGE --> ARMORAPP
+  REM --> ARMORAPP
+  NOTIF --> ARMORAPP
+  ARMORAPP --> GEMINI
+
+  REM --"MCP tools"--> AGW
+  NOTIF --"zendesk_update_ticket"--> AGW
+  AID -. "authenticates<br/>(mTLS)" .-> AGW
+  AGW --> MCPGW
+  MCPGW --> BACKENDS
+  MCPGW -.registered.-> AREG
+  AGW -.policy lookup.-> AREG
+
+  RUNTIME  -. OTel .- OPT
+  ARMORAPP -. audit .- OPT
+  AGW      -. audit + metrics .- OPT
+  MCPGW    -. metrics .- OPT
+
+  class KICK user
+  class TRIAGE coord
+  class REM,NOTIF sub
+  class SKILL build
+  class RUNTIME,SESS,MEM scale
+  class ARMORAPP,GEMINI,AID,AGW,AREG govern
+  class MCPGW tool
+  class BACKENDS tool
+  class TRACE,LOGS,OBS optimize
+    </div>
+  </div>
+</main>
+
+<footer>
+  Enterprise Support Agent — L400 demo. Rendered with Mermaid.
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "default",
+    flowchart: {
+      curve: "basis",
+      useMaxWidth: true,
+      htmlLabels: true,
+      padding: 12
+    }
+  });
+</script>
+</body>
+</html>
