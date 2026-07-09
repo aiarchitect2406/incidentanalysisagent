@@ -52,20 +52,57 @@ Every command below that takes `LAB_USER_ID=...` uses this. Omit it entirely for
 
 1. Clone the repo and open the folder in Antigravity IDE (`File → Open Folder`, same workflow as VS Code).
 2. Open the integrated terminal (`` Ctrl+` ``).
-3. Authenticate and install the Python dependencies needed to run and deploy the agent:
+3. Authenticate to Google Cloud:
    ```bash
    gcloud auth application-default login
    gcloud config set project YOUR_PROJECT_ID
    export GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
-
-   pip install -r requirements.txt
    ```
+4. Create a Python virtual environment at the repo root and install the dependencies into it.
+   **Pick whichever of these two paths works on your machine:**
+
+   **Option 1 (recommended, works everywhere): [`uv`](https://docs.astral.sh/uv/getting-started/installation/)**
+   ```bash
+   # One-time install of uv itself, if you don't already have it:
+   #   macOS/Linux: curl -LsSf https://astral.sh/uv/install.sh | sh
+   #   Windows:     powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+   uv venv                             # creates .venv/ using whatever python3 you have
+   source .venv/bin/activate           # Windows: .venv\Scripts\activate
+   uv pip install -r requirements.txt  # <-- root-level file, NOT enterprise_support_agent/requirements.txt
+   ```
+
+   **Option 2 (stdlib fallback): `python3 -m venv`**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate           # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt     # <-- root-level file, NOT enterprise_support_agent/requirements.txt
+   ```
+   If Option 2 errors with `ensurepip is not available` or similar, your Python install is missing
+   the venv module (common on stripped-down Linux images and Cloud Shell). On Debian/Ubuntu that's
+   `sudo apt install python3-venv`; if you don't have sudo, use Option 1 instead — `uv` needs no
+   system packages.
+
+   **Why a venv is required, not `pip install -r requirements.txt` directly?** Modern Python installs
+   on Debian, Ubuntu, macOS Homebrew, and corp-managed machines refuse system-wide `pip install`
+   (`error: externally-managed-environment`, PEP 668). A venv is the standard fix and works the same
+   on every OS. **Do not use `--break-system-packages`** — it silently installs the agent's deps into
+   your system Python and can corrupt other tools that depend on those packages.
+
+   Keep the venv activated for every terminal you run subsequent tasks in (`make` shells out to
+   `python3`, which picks up whichever one is first on `PATH` — activating the venv puts the venv's
+   `python3` first).
+
+   Two similarly-named `requirements.txt` files exist for a reason: the **root** one is for running
+   and deploying the agent locally (what you want now); `enterprise_support_agent/requirements.txt`
+   is scoped to what gets baked into the MCP gateway container image and is installed *inside* that
+   container by Cloud Build — never on your local machine.
 
 > **No local `gcloud`, or no permission to install software on this machine?** Open
 > [Cloud Shell](https://console.cloud.google.com) (the terminal icon in the Cloud Console toolbar)
 > instead of a local terminal. It has `gcloud`, `python3`, and `terraform` preinstalled and already
 > authenticated as you — clone the repo there and run every command in this guide exactly as written,
-> from that terminal instead of Antigravity's. The only difference comes up in Task 3, noted there.
+> from that terminal instead of Antigravity's. The venv step above still applies (Cloud Shell's system
+> Python is also PEP-668-managed). The only other difference comes up in Task 3, noted there.
 
 **Using Antigravity's Agent panel instead of typing commands yourself:** it can run terminal commands
 for you and report back what happened — useful for the longer steps below where you mainly want a
@@ -209,6 +246,9 @@ suffixed with your `LAB_USER_ID`).
 
 | Symptom | What to try |
 |---|---|
+| `pip install -r requirements.txt` fails with `error: externally-managed-environment` (PEP 668) | You skipped the venv step in Task 1 — see there for the two options (`uv venv` or `python3 -m venv .venv`). Do NOT use `--break-system-packages`. |
+| `python3 -m venv .venv` fails with `ensurepip is not available` | Your Python is missing the venv stdlib module. `sudo apt install python3-venv` on Debian/Ubuntu, or use `uv venv` instead (needs no system packages). |
+| `ModuleNotFoundError: No module named 'google.adk'` (or similar) when `make` runs a script | The venv isn't activated in this terminal — run `source .venv/bin/activate` and retry. Every new terminal needs it. |
 | `make tf-apply` fails enabling an API | Confirm billing is enabled on the project and you have the Service Usage Admin role. |
 | `make smoke-test` fails on Scenario A or B | Re-run it — the very first run after deployment sometimes hits a cold start. If it fails twice, run `make tf-output` and confirm the gateway URL it prints actually resolves (`curl` it). |
 | Scenario C doesn't show recall on the second run | Memory generation happens asynchronously after the first session ends — this can occasionally take longer than the test's default wait. Re-run `make smoke-test` once. |

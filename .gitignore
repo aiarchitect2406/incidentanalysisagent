@@ -1,2 +1,15 @@
 *L400-playbook.md
 enterprise_support_agent/docs/L400-playbook.md
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Local state written by scripts/deploy_skills_agent.py
+.agent_engine_id
+.agent_identity
+
+# macOS
+.DS_Store
