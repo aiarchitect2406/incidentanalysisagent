@@ -66,10 +66,15 @@ Every command below that takes `LAB_USER_ID=...` uses this. Omit it entirely for
    # One-time install of uv itself, if you don't already have it:
    #   macOS/Linux: curl -LsSf https://astral.sh/uv/install.sh | sh
    #   Windows:     powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-   uv venv                             # creates .venv/ using whatever python3 you have
+   uv venv --seed                      # creates .venv/ with a real pip inside it (see note below)
    source .venv/bin/activate           # Windows: .venv\Scripts\activate
-   uv pip install -r requirements.txt  # <-- root-level file, NOT enterprise_support_agent/requirements.txt
+   pip install -r requirements.txt     # <-- root-level file, NOT enterprise_support_agent/requirements.txt
    ```
+   Use `--seed` — plain `uv venv` does not install a `pip` binary into the venv, so after activating
+   it a plain `pip install` silently falls through to your *system* pip and hits the exact same PEP
+   668 error again. `--seed` avoids that trap. (If you'd rather not use `--seed`, `uv pip install -r
+   requirements.txt` also works without it — just don't mix the two, and default to `pip install`
+   once `--seed` is used so muscle memory doesn't bite you here or in Tasks 2–5.)
 
    **Option 2 (stdlib fallback): `python3 -m venv`**
    ```bash
@@ -77,10 +82,11 @@ Every command below that takes `LAB_USER_ID=...` uses this. Omit it entirely for
    source .venv/bin/activate           # Windows: .venv\Scripts\activate
    pip install -r requirements.txt     # <-- root-level file, NOT enterprise_support_agent/requirements.txt
    ```
-   If Option 2 errors with `ensurepip is not available` or similar, your Python install is missing
-   the venv module (common on stripped-down Linux images and Cloud Shell). On Debian/Ubuntu that's
-   `sudo apt install python3-venv`; if you don't have sudo, use Option 1 instead — `uv` needs no
-   system packages.
+   If Option 2 errors with `ensurepip is not available`, your Python install is missing the venv
+   module (common on stripped-down Linux/container images and some Cloud Shell states) — the error
+   message itself names the exact package to install, e.g. `sudo apt install python3.12-venv` (the
+   version suffix matches your `python3 --version`). No sudo, or it's still not available? Use Option
+   1 instead — `uv` needs no system packages at all.
 
    **Why a venv is required, not `pip install -r requirements.txt` directly?** Modern Python installs
    on Debian, Ubuntu, macOS Homebrew, and corp-managed machines refuse system-wide `pip install`
@@ -246,8 +252,8 @@ suffixed with your `LAB_USER_ID`).
 
 | Symptom | What to try |
 |---|---|
-| `pip install -r requirements.txt` fails with `error: externally-managed-environment` (PEP 668) | You skipped the venv step in Task 1 — see there for the two options (`uv venv` or `python3 -m venv .venv`). Do NOT use `--break-system-packages`. |
-| `python3 -m venv .venv` fails with `ensurepip is not available` | Your Python is missing the venv stdlib module. `sudo apt install python3-venv` on Debian/Ubuntu, or use `uv venv` instead (needs no system packages). |
+| `pip install -r requirements.txt` fails with `error: externally-managed-environment` (PEP 668) | You skipped the venv step in Task 1, or you're inside a venv created with plain `uv venv` (no `--seed`) and `pip` fell through to the system one. See Task 1 for the two options. Do NOT use `--break-system-packages`. |
+| `python3 -m venv .venv` fails with `ensurepip is not available` | Your Python is missing the venv stdlib module. Run the exact `apt install python3.X-venv` command the error message names (it includes your Python's version), or use `uv venv --seed` instead (needs no system packages). |
 | `ModuleNotFoundError: No module named 'google.adk'` (or similar) when `make` runs a script | The venv isn't activated in this terminal — run `source .venv/bin/activate` and retry. Every new terminal needs it. |
 | `make tf-apply` fails enabling an API | Confirm billing is enabled on the project and you have the Service Usage Admin role. |
 | `make smoke-test` fails on Scenario A or B | Re-run it — the very first run after deployment sometimes hits a cold start. If it fails twice, run `make tf-output` and confirm the gateway URL it prints actually resolves (`curl` it). |
