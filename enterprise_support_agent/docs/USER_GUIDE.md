@@ -9,11 +9,10 @@
 1. Connect Antigravity to your Google Cloud project and GEAP
 2. Bring the lab stack up (Antigravity drives Terraform + agent deploy)
 3. Get an architectural tour of the codebase
-4. Verify the deployment with three scenario tests — and debug via MCP if anything fails
-5. Interact with the deployed agent via **ADK Web UI** (the real dev inner-loop)
-6. Optionally: watch the same interaction happen in the **Cloud Console** with the Browser Agent
-7. Make your first change to the runbook — without redeploying
-8. Clean up
+4. Interact with the deployed agent via **ADK Web UI** — run the three scenarios yourself and watch them work
+5. Optionally: watch the same interaction happen in the **Cloud Console** with the Browser Agent
+6. Make your first change to the runbook — without redeploying
+7. Clean up
 
 ~60–90 minutes end to end. Open [`architecture-overview.html`](./architecture-overview.html) now for a 2-minute look at what you're about to stand up — the four GEAP pillars (Build, Scale, Govern, Optimize) and their pieces.
 
@@ -114,63 +113,64 @@ Antigravity has full read access to the repo — its tour is grounded in what's 
 
 ---
 
-## Step 4 — Verify with the three scenario tests
+## Step 4 — Interact with the deployed agent via ADK Web UI
 
-The repo ships with three end-to-end scenarios. **Each targets a different platform feature — you want all three green.**
+This is where **you** take over from Antigravity and drive the agent yourself. The **ADK Web UI** is a local web app that gives you a chat interface + an event-by-event trace pane + a graph view of the multi-agent topology. Critically, we point it at your **deployed Agent Runtime instance** so Sessions and Memory Bank are the real production ones — anything the agent remembers here, the deployed agent remembers too, and vice versa.
 
+Ask Antigravity to start the server for you:
 ```
-Run all three scenario tests against the deployed agent (LAB_USER_ID=$LAB_USER_ID):
-
-  - Scenario A — Autonomous Remediation: happy-path incident triage + parallel investigation + auto-remediation + notification handoff. Exercises the multi-agent flow and Skill Registry.
-  - Scenario B — Prompt Injection Containment: a ticket with a hidden malicious instruction. Model Armor should block the affected tool calls.
-  - Scenario C — Long-Term Memory Recall: same ticket replayed in a brand-new conversation. The second run should reference the first run's fix (proves Memory Bank works).
-
-Read the Makefile if you need to find the target that runs these. Summarize which passed/failed, and quote the detail line for anything that failed.
-
-If any scenario failed, DO NOT just retry. Instead:
-  1. Pull `jsonPayload.event="tool_invoked"` from Cloud Logging for the last 15 minutes via the Cloud Logging MCP.
-  2. Call Gemini Cloud Assist's `investigate_issue` with a description of the scenario name and the failure.
-  3. Correlate what you find against the code.
-  4. Produce an Implementation Plan naming the root cause and the fix — don't touch files until I approve.
+Launch the ADK Web UI locally, pointed at the Agent Runtime instance we just deployed (LAB_USER_ID=$LAB_USER_ID) so Sessions and Memory Bank are shared with the deployed agent. Tell me the local URL to open in my browser, then leave the server running.
 ```
 
-For narrated walkthroughs of what each scenario *should* do, see [`scenario-a.md`](./scenario-a.md), [`scenario-b.md`](./scenario-b.md), and [`scenario-c.md`](./scenario-c.md) (Mermaid diagrams + step tables render inline on GitHub).
+Antigravity figures out the right invocation (there's a `make web` target that assembles the ADK CLI flags — `adk web --session_service_uri=agentengine://... --memory_service_uri=agentengine://... .`). Open the URL it prints (default `http://127.0.0.1:8000`) in your browser.
 
----
-
-## Step 5 — Interact with the deployed agent via ADK Web UI
-
-This is where you actually *use* your agent as an engineer would in the dev inner-loop. The **ADK Web UI** is a local web app that gives you a chat interface + an event-by-event trace pane + a graph view of the multi-agent topology. Critically, we point it at your **deployed Agent Runtime instance** so Sessions and Memory Bank are the real production ones — anything the agent remembers here, the deployed agent remembers too, and vice versa.
-
-```
-Launch the ADK Web UI locally, pointed at the Agent Runtime instance we just deployed (LAB_USER_ID=$LAB_USER_ID) so Sessions and Memory Bank are shared with the deployed agent. Tell me the local URL to open in my browser.
-```
-
-Antigravity will figure out the right invocation (there's a `make web` target that assembles the ADK CLI flags — `adk web --session_service_uri=agentengine://... --memory_service_uri=agentengine://... .` — pointing at the resource in `.agent_engine_id`). It'll then leave the server running in the terminal.
-
-Open the URL it prints (default `http://127.0.0.1:8000`) in your browser and try:
-
-> `Resolve enterprise support ticket INC-101 end-to-end.`
-
-In the ADK Web UI you'll see:
+**What you'll see in the ADK Web UI:**
 - Left pane: chat conversation
 - Right pane: **event stream** — every LLM turn, every tool call, every sub-agent handoff, in order, with request/response payloads
 - **Graph tab**: the multi-agent topology drawn from the actual execution
 - **Trace tab**: the same events as a Gantt chart, showing which tool calls fired in parallel batches
 
-Send `INC-666` (the injected ticket) and watch Model Armor block the tool call in real time — you'll see the `SECURITY EXCEPTION` in the event stream. Send `INC-101` again from a fresh session (`+ New session`) and watch Memory Bank surface the prior fix.
+Now run through the three scenarios yourself. Each targets a different platform feature — you'll want to see all three work:
 
-**Two things to know:**
-- The `adk web` server keeps running in the terminal — kill it with `Ctrl+C` when done.
-- If you're on **Cloud Shell** instead of a local machine: the URL is still `http://127.0.0.1:8000`, but you can't open it directly. Click **Web Preview** (top-right of Cloud Shell) → **Preview on port 8000**.
+### Scenario A — Autonomous Remediation
 
-**No local terminal at all? (Cloud Shell not an option either)** — skip to Step 6's Browser Agent + Cloud Console walkthrough. The **Playground** tab of Agent Registry gives you a chat interface to the deployed agent from any browser, no local tooling required, but it doesn't show the rich event stream that ADK Web UI does — you'll want to look at the **Traces** tab separately to see what tools fired.
+Send this in a new session:
+> `Resolve enterprise support ticket INC-101 end-to-end.`
+
+**What to watch:** the agent loads the runbook from Skill Registry, then investigates in parallel (Phase 2: 3 tool calls in one turn — Salesforce, Postgres, Workday), then remediates in parallel (Phase 3: 2 tool calls — Jira + heap expansion), then verifies, then hands off to a *different* sub-agent (`notification_agent`) which is the only one that can write back to Zendesk (least-privilege boundary).
+
+Narrated walkthrough: [`scenario-a.md`](./scenario-a.md).
+
+### Scenario B — Prompt Injection Containment
+
+Click **+ New session**. Send:
+> `Resolve enterprise support ticket INC-666 end-to-end.`
+
+**What to watch:** INC-666 contains a hidden `Ignore all previous instructions...` payload. The agent itself does the right thing — it doesn't fall for the injection — but Model Armor blocks the tool call anyway because the conversation context is poisoned. You'll see a `SECURITY EXCEPTION` in the event stream.
+
+Narrated walkthrough: [`scenario-b.md`](./scenario-b.md).
+
+### Scenario C — Long-Term Memory Recall
+
+Click **+ New session** *twice* — you want to run this in two separate sessions with the same user. First session, send:
+> `Resolve enterprise support ticket INC-101 end-to-end.`
+
+Wait for it to finish. Then click **+ New session** again and send the *same message*. **What to watch:** the second session's response should reference the *first* session's fix — because between the two runs, an `after_agent_callback` persisted the resolution to Memory Bank, and `PreloadMemoryTool` recalled it silently at the start of the second run.
+
+Narrated walkthrough: [`scenario-c.md`](./scenario-c.md).
+
+### Two things to know
+
+- The `adk web` server keeps running in the terminal — `Ctrl+C` when you're done.
+- On **Cloud Shell** instead of a local machine: the URL is still `http://127.0.0.1:8000`, but you can't open it directly. Click **Web Preview** (top-right of Cloud Shell) → **Preview on port 8000**.
+
+**No local terminal at all?** The **Playground** tab of Agent Registry gives you a chat interface to the deployed agent from any browser, no local tooling required — but it doesn't show the rich event stream ADK Web UI does. Look at the **Traces** tab separately to see what tools fired.
 
 ---
 
-## Step 6 — Optional: watch the same interaction in Cloud Console
+## Step 5 — Optional: watch the same interaction in Cloud Console
 
-The ADK Web UI in Step 5 is the developer's view. The Cloud Console shows the same activity from the **platform's** view — Agent Registry tabs for Identity, Topology, Security, Sessions, Memories. Same run, different lens.
+Step 4 is the developer's view. The Cloud Console shows the same activity from the **platform's** view — Agent Registry tabs for Identity, Topology, Security, Sessions, Memories. Same run, different lens.
 
 If you want a hand-held tour of the Console tabs — and, importantly, a **browser recording as a shareable artifact** — paste this and let the Browser Agent drive:
 
@@ -188,7 +188,7 @@ The saved recording is reusable — hand it to a teammate later instead of sched
 
 ---
 
-## Step 7 — Make your first change (the "no redeploy" moment)
+## Step 6 — Make your first change (the "no redeploy" moment)
 
 The agent's runbook lives in **Skill Registry** — not baked into the container. That means changes to the runbook take effect on the next agent run, with no redeploy of the agent binary. This is the mental model to leave the lab with, and it's easiest to feel by making a small change and watching it appear live.
 
@@ -204,7 +204,7 @@ The point isn't the specific edit — it's the loop: **runbook = data, agent = c
 
 ---
 
-## Step 8 — Clean up
+## Step 7 — Clean up
 
 ```
 Tear down everything I created in this lab (LAB_USER_ID=$LAB_USER_ID):
@@ -219,7 +219,7 @@ If you were sharing a project, everything you created was suffixed with your `LA
 
 ## When to open the Cloud Console yourself
 
-The Browser Agent in Step 6 covers most walkthroughs, but there are a few things you'll want to see with your own eyes:
+The Browser Agent in Step 5 covers most walkthroughs, but there are a few things you'll want to see with your own eyes:
 
 | To see this | Open |
 |---|---|
@@ -253,11 +253,23 @@ Known cases worth listing here (Antigravity's prompt above covers the rest):
 | `pip install` fails with `error: externally-managed-environment` (PEP 668) | Venv missing, or venv created with plain `uv venv` (no `--seed`) so `pip` fell through to system pip. Re-run Step 2. Do NOT use `--break-system-packages`. |
 | `python3 -m venv .venv` fails with `ensurepip is not available` | Python missing the venv stdlib module. Install the exact package the error names (e.g. `apt install python3.12-venv`), or use `uv venv --seed` instead — `uv` needs no system packages. |
 | `terraform apply` fails on API enablement | Confirm billing is enabled and you have Service Usage Admin on the project. |
-| Smoke test fails on Scenario A or B on the first run | Cold start after a fresh deploy is sometimes flaky. Re-run once. If it still fails, use the debug prompt above. |
-| Scenario C doesn't show recall on the second run | Memory generation is async — bump `SMOKE_TEST_MEMORY_WAIT_SECONDS` (default 15) and rerun. |
+| Scenario A or B doesn't behave as described in the ADK Web UI on first try | Cold start after a fresh deploy is sometimes flaky. Send the prompt again in a new session. If it still fails, use the deep-debug prompt below. |
+| Scenario C's second run doesn't reference the first run | Memory generation is async — wait ~30 seconds after the first session finishes before starting the second, then retry. |
 | Terraform says a resource already exists | You already provisioned under this `LAB_USER_ID`. Either reuse it (Terraform is idempotent) or pick a different `LAB_USER_ID`. |
-| ADK Web UI (Step 5) can't reach the gateway | The `.agent_engine_id` file at the repo root is stale or missing — re-run Step 2's deploy portion, or point `adk web` at the deployed resource explicitly. |
+| ADK Web UI (Step 4) can't reach the gateway | The `.agent_engine_id` file at the repo root is stale or missing — re-run Step 2's deploy portion, or point `adk web` at the deployed resource explicitly. |
 | Shared project, don't want to touch teammates' shared setup | Pass `manage_shared_infra=false` when Antigravity provisions Terraform (see [`terraform/README.md`](../../terraform/README.md)). |
+
+### Deep-debug prompt (when a scenario doesn't behave as expected)
+
+When a scenario misbehaves in the ADK Web UI in Step 4 — a tool call fails, the wrong sub-agent runs, Memory Bank doesn't recall — this is where Antigravity's MCP integrations really shine. Paste this and let it correlate everything:
+
+```
+Scenario [A/B/C] misbehaved in the ADK Web UI just now — describe what happened. Then, don't retry. Instead:
+  1. Pull `jsonPayload.event="tool_invoked"` from Cloud Logging for the last 15 minutes via the Cloud Logging MCP.
+  2. Call Gemini Cloud Assist's `investigate_issue` with a description of the scenario and the observed failure.
+  3. Cross-reference what you find against enterprise_support_agent/agent.py, callbacks.py, and mcp_server.py.
+  4. Produce an Implementation Plan naming the root cause and the fix — don't touch files until I approve.
+```
 
 ---
 
