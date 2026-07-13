@@ -133,7 +133,7 @@ Save a browser recording of the entire flow. When done, summarize what you saw a
 
 The browser recording becomes an **Antigravity Artifact** — a reusable walkthrough you can hand to a teammate later instead of scheduling a screen-share.
 
-For a hand-authored, narrated walkthrough of each scenario individually, see [`scenario-a.html`](./scenario-a.html), [`scenario-b.html`](./scenario-b.html), and [`scenario-c.html`](./scenario-c.html) (open in a browser).
+For a hand-authored, narrated walkthrough of each scenario individually, see [`scenario-a.md`](./scenario-a.md), [`scenario-b.md`](./scenario-b.md), and [`scenario-c.md`](./scenario-c.md) — GitHub renders them (Mermaid diagram + step-by-step table) directly in the browser.
 
 ---
 
@@ -215,7 +215,7 @@ Known symptoms worth listing here (the ones above are handled by the prompt):
 ## Where to learn more
 
 - [`architecture-overview.html`](./architecture-overview.html) — the full picture, organized by GEAP pillar.
-- [`scenario-a.html`](./scenario-a.html), [`scenario-b.html`](./scenario-b.html), [`scenario-c.html`](./scenario-c.html) — narrated walkthroughs of each demo scenario.
+- [`scenario-a.md`](./scenario-a.md), [`scenario-b.md`](./scenario-b.md), [`scenario-c.md`](./scenario-c.md) — narrated walkthroughs of each demo scenario (Mermaid diagrams render inline on GitHub).
 - [`agent-gateway-setup.md`](./agent-gateway-setup.md) — provisioning the network-layer Model Armor path (optional; skipped by default in this lab).
 - [Gemini Enterprise Agent Platform overview](https://docs.cloud.google.com/gemini-enterprise-agent-platform/overview)
 - [Agent Development Kit docs](https://adk.dev/)
