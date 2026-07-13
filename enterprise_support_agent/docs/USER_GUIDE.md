@@ -14,7 +14,8 @@ By the end of this lab you will have:
 1. Provisioned the infrastructure with Terraform.
 2. Verified the deployment with an automated test.
 3. Interacted with the running agent directly and watched it work.
-4. Cleaned up everything you created.
+4. Made your first change to the agent's runbook — without redeploying it.
+5. Cleaned up everything you created.
 
 Before you start, open `architecture-overview.html` in a browser — it shows every piece you're about
 to stand up, organized by GEAP's four pillars: **Build** (the agent + its runbook), **Scale** (the
@@ -45,6 +46,29 @@ export LAB_USER_ID=yourname   # lowercase letters/numbers/hyphens, e.g. "alice"
 ```
 
 Every command below that takes `LAB_USER_ID=...` uses this. Omit it entirely for a solo run.
+
+---
+
+## Using Antigravity IDE with this lab (optional)
+
+If you're running this in [Antigravity IDE](https://antigravity.google/docs/ide/overview), each task
+below has an **▶ Antigravity** callout with a literal prompt to paste into the Agent panel and a note
+on which IDE surface fits best. Skip the callouts if you're on a different editor — every task also
+works from a plain terminal.
+
+Quick reference for which Antigravity surface to reach for:
+
+| When you want to… | Use… |
+|---|---|
+| Multi-file change with a reviewable plan first | Agent panel, **Planning Mode** → **Implementation Plan** artifact |
+| Small localized edit, fast | Agent panel, **Fast Mode** |
+| Draft in place (skill markdown, config value) | **Tab** autocomplete |
+| Long-running command while you keep working | Agent panel, delegated to background |
+| Verify a change worked in Cloud Console | **Browser Agent** — save the recording as an artifact |
+| Debug across code + Cloud Logging + Cloud Trace together | Agent panel, Planning Mode, cross-source prompt (see Troubleshooting) |
+
+The callouts throughout intentionally teach one Antigravity surface at a time so you finish the lab
+knowing which lever to pull for which situation, not just how to run the demo.
 
 ---
 
@@ -110,16 +134,19 @@ Every command below that takes `LAB_USER_ID=...` uses this. Omit it entirely for
 > from that terminal instead of Antigravity's. The venv step above still applies (Cloud Shell's system
 > Python is also PEP-668-managed). The only other difference comes up in Task 3, noted there.
 
-**Using Antigravity's Agent panel instead of typing commands yourself:** it can run terminal commands
-for you and report back what happened — useful for the longer steps below where you mainly want a
-pass/fail summary rather than to watch every log line. For example, you could type into the Agent
-panel:
-
-> "Run `gcloud auth application-default login` in the terminal, wait for it to finish, and confirm it
-> succeeded."
-
-The rest of this guide shows the raw command for every task — type it yourself, or ask the Agent panel
-to run it and summarize the result. Both work the same way; the Agent panel is just a convenience.
+**▶ Antigravity — Agent panel, Fast Mode.** Paste this instead of running the setup steps by hand:
+```
+Do the following in the integrated terminal, one at a time, waiting for each to finish before starting the next. For each step, tell me whether it succeeded and quote any error verbatim:
+  1. gcloud auth application-default login
+  2. gcloud config set project $GOOGLE_CLOUD_PROJECT
+  3. Create a Python venv at the repo root using `uv venv --seed` (fall back to `python3 -m venv .venv` if uv isn't installed — install uv first if that's the case, from https://astral.sh/uv/install.sh)
+  4. source .venv/bin/activate
+  5. pip install -r requirements.txt
+Do not proceed to the next step if the previous one errored.
+```
+*You're learning:* Antigravity handles multi-step terminal work and hands you a pass/fail summary
+instead of a log wall. Good default for anything with more than one command that has to succeed in
+order.
 
 ---
 
@@ -143,9 +170,14 @@ It takes a few minutes — most of that is the container build. When it finishes
 URL and a few other values; you don't need to copy anything down, the next commands read them
 automatically.
 
-**Agent panel example:**
-> "Run `make tf-apply LAB_USER_ID=alice` in the terminal. It'll take a few minutes — let me know when
-> it finishes, whether it succeeded, and paste the final output block."
+**▶ Antigravity — Agent panel, delegated to background.** Paste this so you can keep reading/prep-ing
+Task 3 while infra provisions:
+```
+Run `make tf-apply LAB_USER_ID=$LAB_USER_ID` in the background. Notify me the moment it finishes. If it succeeded, paste the `terraform apply` outputs (gateway URL, secret name, staging bucket). If it failed, quote the first error line + the last 10 lines of output, and check whether the failure is one of the entries in the Troubleshooting section of this doc.
+```
+*You're learning:* long provisioning runs shouldn't lock your session. Antigravity's async execution
+model runs it in the background and pings you when done — same pattern applies to `make smoke-test`
+or any long `gcloud` command.
 
 ---
 
@@ -167,9 +199,19 @@ This runs three scenarios against your freshly-deployed agent and reports pass/f
 
 You should see `🟢 Demo is GO` at the end. If you see ✗ marks instead, check **Troubleshooting** below.
 
-**Agent panel example:**
-> "Run `make smoke-test LAB_USER_ID=alice`. Summarize which of the three scenarios passed or failed,
-> and quote the detail line for anything that failed."
+**▶ Antigravity — Agent panel, Fast Mode (happy path).** Paste:
+```
+Run `make smoke-test LAB_USER_ID=$LAB_USER_ID`. Summarize which of Scenarios A, B, and C passed or failed, and quote the detail line for anything that failed.
+```
+
+**▶ Antigravity — Agent panel, Planning Mode (if something fails).** Paste this only if a scenario
+failed above:
+```
+`make smoke-test` failed. Read the terminal output first, then correlate against Cloud Logging (jsonPayload.event="tool_invoked" AND severity>=WARNING, last 15 minutes, project $GOOGLE_CLOUD_PROJECT), then read the last Cloud Trace for the deployed agent (resource name in .agent_engine_id). Produce an Implementation Plan naming the root cause and the fix — don't edit any files until I approve the plan.
+```
+*You're learning:* debugging a deployed agent is a cross-source problem — you need code + logs +
+traces together. The Planning Mode + Implementation Plan artifact keeps Antigravity from silently
+"fixing" the wrong thing; you get a written proposal you can accept, comment on, or reject.
 
 ---
 
@@ -222,18 +264,65 @@ A few other tabs worth a look while you're there:
 - **Memories** — empty at first; run the same ticket twice (two different sessions) and a fact appears
   here after the first run.
 
-**If you'd rather not click around manually:** Antigravity's Browser agent can navigate the Console for
-you, e.g.:
-> "Open the Google Cloud Console, go to Agent Registry, open the agent named
-> `enterprise_skills_support_agent-alice`, click the Traces tab, and describe what you see for the most
-> recent run."
+**▶ Antigravity — Browser Agent (Console walkthrough as an artifact).** Paste this to drive the
+Console tour without clicking manually — and, importantly, capture the whole thing as a **browser
+recording** you can play back later or share with a teammate:
+```
+Open https://console.cloud.google.com/gemini-enterprise/agent-registry in Chrome. Find and click the agent named `enterprise_skills_support_agent-$LAB_USER_ID`. Then:
+  1. Playground tab: send "Resolve enterprise support ticket INC-101 end-to-end", wait for the response.
+  2. Traces tab: click the run you just created; list the tool call sequence and flag any that ran in parallel batches (Phase 2 should show 3, Phase 3 should show 2).
+  3. Identity tab: capture the SPIFFE principal string.
+  4. Memories tab: capture whether any memory entries exist yet.
+Save a browser recording of the whole flow as an artifact.
+```
+*You're learning:* the "walkthrough" of your deployed lab is now a reproducible artifact — send the
+recording to a colleague instead of scheduling a screen-share. Same pattern works for any Cloud
+Console flow (verifying a Cloud Run deploy, checking a Model Armor block, etc).
 
-For a guided, narrated walkthrough of all three scenarios, see `scenario-a.html`, `scenario-b.html`,
-and `scenario-c.html` (open them in a browser).
+For a narrated, hand-authored walkthrough of all three scenarios, see `scenario-a.html`,
+`scenario-b.html`, and `scenario-c.html` (open them in a browser).
 
 ---
 
-## Task 5 — Clean up
+## Task 5 — Make your first change (the "no redeploy" moment)
+
+Everything you've done so far runs an agent you deployed. Now change what that agent does — in a way
+that most first-time GEAP engineers assume requires rebuilding and redeploying, but doesn't. This is
+the mental model to leave the lab with.
+
+The change: add one sentence to the runbook's final summary. Edit
+`enterprise_support_agent/skills/incident-escalator/SKILL.md`, find the `## Phase 6 — Present
+resolution output` section, and add one bullet — e.g.:
+```
+- Total elapsed time from ticket receipt to resolution.
+```
+Then republish the skill and re-run a scenario:
+```bash
+make publish-skill LAB_USER_ID=$LAB_USER_ID
+make smoke-test LAB_USER_ID=$LAB_USER_ID   # or fire a Playground message
+```
+
+The next agent run should include your new bullet in its final summary. **You did not redeploy the
+agent** (no `make tf-apply`, no `make deploy-agent`) — the runbook lives in Skill Registry, which the
+agent fetches on every run. That's the platform feature this whole lab is built to demonstrate.
+
+**▶ Antigravity — Tab + Agent panel, Fast Mode.** Two ways to do this in Antigravity:
+
+- *Editing the SKILL.md:* open it in the editor and use **Tab** to draft the new bullet — Tab
+  autocompletes in the surrounding markdown style. Faster than typing.
+- *Publishing + verifying:* paste this into the Agent panel after saving the edit:
+  ```
+  Run `make publish-skill LAB_USER_ID=$LAB_USER_ID`, then `make smoke-test LAB_USER_ID=$LAB_USER_ID`. When smoke-test finishes, quote the Scenario A final summary section from the output and confirm whether it includes the new "elapsed time" bullet I just added to Phase 6 of SKILL.md.
+  ```
+
+*You're learning:* runbook changes ≠ code changes ≠ redeploys. On GEAP, the agent is code, the
+runbook is data, and the platform composes them at runtime. Once you internalize this you'll know
+which changes are safe to make live and which need a deploy — the single most common source of
+"is this going to break prod?" hesitation for teams new to agent platforms.
+
+---
+
+## Task 6 — Clean up
 
 When you're done:
 
@@ -249,6 +338,14 @@ suffixed with your `LAB_USER_ID`).
 ---
 
 ## Troubleshooting
+
+**▶ Antigravity — first line of defense before you scan the table.** Any `make` command failing?
+Paste this into the Agent panel:
+```
+The most recent `make` command in this terminal failed. Read its output, then check for related errors in Cloud Logging (severity>=ERROR, last 10 minutes, project $GOOGLE_CLOUD_PROJECT), then cross-reference against the Troubleshooting table in enterprise_support_agent/docs/USER_GUIDE.md. Tell me which known symptom this matches, or — if it's not in the table — produce an Implementation Plan naming the root cause and the fix without editing files yet.
+```
+The manual table below covers the common cases in one place, but the prompt above is a good first
+swing at anything unusual — it correlates logs + code + doc automatically.
 
 | Symptom | What to try |
 |---|---|
