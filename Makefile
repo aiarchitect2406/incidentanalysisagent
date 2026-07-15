@@ -58,7 +58,7 @@ help:
 	@awk -F':|##' '/^[a-zA-Z_-]+:.*##/ {printf "  %-18s %s\n", $$1, $$3}' $(MAKEFILE_LIST)
 
 env-check: ## Verify required env vars are set
-	@: $${PROJECT_ID:?Need to set GOOGLE_CLOUD_PROJECT}
+	@: $${GOOGLE_CLOUD_PROJECT:?Need to set GOOGLE_CLOUD_PROJECT}
 	@echo "✓ Project: $(PROJECT_ID)  Region: $(LOCATION)  Lab user: $(or $(LAB_USER_ID),<none (unsuffixed)>)"
 
 setup: env-check ## One-time: enable APIs + create runtime service account bindings

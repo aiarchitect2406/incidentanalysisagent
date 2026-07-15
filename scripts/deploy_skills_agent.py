@@ -36,20 +36,42 @@ logger = init_logging()
 logging.getLogger().setLevel(logging.INFO)
 
 
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_PACKAGE_DIR = _REPO_ROOT / "enterprise_support_agent"
+# extra_packages must be relative to the CURRENT WORKING DIRECTORY, not
+# absolute: the SDK tars each path with `tarfile.add(file)` and no `arcname`
+# override, so an absolute path produces tar members nested under the full
+# filesystem path (e.g. `home/user/.../enterprise_support_agent/...`) instead
+# of a top-level `enterprise_support_agent/` package — confirmed by
+# inspecting the resulting tarball locally. This script is always invoked via
+# `make -C <repo_root> deploy-agent`, so os.getcwd() here IS the repo root.
+_PACKAGE_ARG = os.path.relpath(_PACKAGE_DIR, pathlib.Path.cwd())
+
+
+def _from_env_bool(key: str, *, default: bool) -> bool:
+    return os.environ.get(key, str(default)).strip().lower() in ("1", "true", "yes")
+
+
 def deploy() -> str:
     project = config.project_id()
-    location = config.location()
+    location = config.location()  # baked into the container for Gemini inference — may be "global"
+    engine_location = config.agent_engine_location()  # hosts the reasoningEngine resource — must be a real region
     bucket = config.staging_bucket()
     lab_user_id = config.lab_user_id()
 
     logger.info(
         "vertex_ai_init",
-        extra={"json_fields": {"project": project, "location": location, "lab_user_id": lab_user_id}},
+        extra={"json_fields": {
+            "project": project,
+            "engine_location": engine_location,
+            "inference_location": location,
+            "lab_user_id": lab_user_id,
+        }},
     )
     # v1beta1 is required for identity_type=AGENT_IDENTITY (Preview).
     client = vertexai.Client(
         project=project,
-        location=location,
+        location=engine_location,
         http_options=dict(api_version="v1beta1"),
     )
 
@@ -67,13 +89,41 @@ def deploy() -> str:
         },
     )
 
-    logger.info("agent_runtime_deploy_starting")
+    # AGENT_IDENTITY is a Preview feature: the deployed container then calls
+    # session/memory/model APIs AS the agent's own SPIFFE identity, which
+    # needs its OWN IAM grants (not just the shared Reasoning Engine service
+    # agent's project-level roles) — confirmed live: session creation failed
+    # with a masked 404 ("ReasoningEngine does not exist") until we granted
+    # roles/aiplatform.user to the agent's own principal, and that grant
+    # alone still wasn't sufficient/hadn't propagated. Defaults OFF so a
+    # fresh deploy works out of the box on the shared SA (which already has
+    # every IAM grant it needs from terraform/iam.tf); opt in explicitly
+    # once you've worked through the full IAM grant set for the identity.
+    use_agent_identity = _from_env_bool("AGENT_IDENTITY_ENABLED", default=False)
+    agent_engine_config = {
+        "display_name": config.agent_display_name(),
+        "staging_bucket": bucket,
+    }
+    if use_agent_identity:
+        agent_engine_config["identity_type"] = types.IdentityType.AGENT_IDENTITY
+
+    logger.info("agent_runtime_deploy_starting", extra={"json_fields": {"agent_identity": use_agent_identity}})
     remote = client.agent_engines.create(
         agent=app,
         config={
-            "display_name": config.agent_display_name(),
-            "identity_type": types.IdentityType.AGENT_IDENTITY,
-            "staging_bucket": bucket,
+            **agent_engine_config,
+            # Without this, only the pickled agent OBJECT gets uploaded — not
+            # the `enterprise_support_agent` package its classes/functions are
+            # defined in. cloudpickle serializes module-level objects (our
+            # Agent instances, callbacks, the _PickleSafe* wrapper classes) by
+            # reference (module path + qualname), not by value, so the
+            # deployed container's unpickle step needs to `import
+            # enterprise_support_agent` to reconstruct them — confirmed via a
+            # real deploy that failed with `ModuleNotFoundError:
+            # No module named 'enterprise_support_agent'` without this. Must
+            # be a RELATIVE path (see _PACKAGE_ARG comment above) or the same
+            # error recurs with a differently-broken tar layout.
+            "extra_packages": [_PACKAGE_ARG],
             "requirements": [
                 "google-cloud-aiplatform[adk,agent-engines]>=1.145.0,<2.0.0",
                 # GCPSkillRegistry (google.adk.integrations.skill_registry) only

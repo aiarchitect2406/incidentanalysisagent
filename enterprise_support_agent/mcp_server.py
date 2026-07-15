@@ -5,13 +5,20 @@ to the Gemini Enterprise Agent Platform orchestrator. Prompt-injection
 defense is NOT enforced here — it is enforced upstream by Model Armor
 callbacks registered on the agent. The gateway's only job is to broker
 authenticated tool invocations to the (mocked) backend systems.
+
+Deployed with `enterprise_support_agent/` itself as the Cloud Build/Cloud Run
+source root (see Makefile's deploy-gateway target and terraform/cloud_run.tf),
+so inside the container this file's siblings (logging_setup.py, etc.) sit
+flat at the workspace root — NOT nested under an `enterprise_support_agent`
+package. Import them by bare module name, not package-qualified, or the
+container crashes on startup with ModuleNotFoundError.
 """
 import json
 import os
 
 from mcp.server.fastmcp import FastMCP
 
-from enterprise_support_agent.logging_setup import event, init_logging
+from logging_setup import event, init_logging
 
 logger = init_logging()
 mcp = FastMCP("SreDataGateway")

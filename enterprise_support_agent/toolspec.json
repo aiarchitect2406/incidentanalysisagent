@@ -3,6 +3,10 @@
     {
       "name": "zendesk_list_open_tickets",
       "description": "Returns a list of currently active open ticket IDs from the support queue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
       "annotations": {
         "title": "List Open Zendesk Tickets",
         "readOnlyHint": true,
@@ -12,6 +16,16 @@
     {
       "name": "zendesk_get_ticket",
       "description": "Fetches a Zendesk customer support ticket by its ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "description": "The unique Zendesk ticket ID (e.g. INC-101)."
+          }
+        },
+        "required": ["ticket_id"]
+      },
       "annotations": {
         "title": "Get Zendesk Ticket",
         "readOnlyHint": true,
@@ -21,6 +35,16 @@
     {
       "name": "salesforce_get_customer_context",
       "description": "Retrieves account tier, contract value, and account owner from Salesforce.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "The email address of the customer account."
+          }
+        },
+        "required": ["customer_email"]
+      },
       "annotations": {
         "title": "Get Salesforce Customer Context",
         "readOnlyHint": true,
@@ -30,6 +54,16 @@
     {
       "name": "postgres_get_sync_telemetry",
       "description": "Queries the operational telemetry database (PostgreSQL) for JVM sync logs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "connector_id": {
+            "type": "string",
+            "description": "The connector ID (e.g. CON-BQ-9812)."
+          }
+        },
+        "required": ["connector_id"]
+      },
       "annotations": {
         "title": "Get Connector Sync Telemetry",
         "readOnlyHint": true,
@@ -39,6 +73,10 @@
     {
       "name": "workday_get_oncall_engineer",
       "description": "Queries Workday for the current engineering on-call personnel.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
       "annotations": {
         "title": "Get On-Call Engineer",
         "readOnlyHint": true,
@@ -48,6 +86,24 @@
     {
       "name": "jira_create_bug_ticket",
       "description": "Creates a Jira Bug ticket and returns the generated issue ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title/summary of the Jira bug ticket."
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed bug description with log stacks."
+          },
+          "assignee": {
+            "type": "string",
+            "description": "Engineer to assign this bug ticket to."
+          }
+        },
+        "required": ["title", "description", "assignee"]
+      },
       "annotations": {
         "title": "Create Jira Bug Ticket",
         "readOnlyHint": false,
@@ -59,6 +115,20 @@
     {
       "name": "postgres_update_connector_memory",
       "description": "Updates JVM heap memory allocation for a connector sync worker.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "connector_id": {
+            "type": "string",
+            "description": "Connector ID (e.g. CON-BQ-9812)."
+          },
+          "new_memory_mb": {
+            "type": "integer",
+            "description": "New JVM heap allocation in megabytes (e.g. 4096)."
+          }
+        },
+        "required": ["connector_id", "new_memory_mb"]
+      },
       "annotations": {
         "title": "Update Connector Heap Memory",
         "readOnlyHint": false,
@@ -69,6 +139,16 @@
     {
       "name": "enterprise_trigger_connector_sync",
       "description": "Manually forces a sync retry for a database connector worker.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "connector_id": {
+            "type": "string",
+            "description": "Connector ID to trigger (e.g. CON-BQ-9812)."
+          }
+        },
+        "required": ["connector_id"]
+      },
       "annotations": {
         "title": "Trigger Connector Sync",
         "readOnlyHint": false,
@@ -79,6 +159,24 @@
     {
       "name": "zendesk_update_ticket",
       "description": "Writes a comment or updates the support status of a Zendesk ticket.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "description": "Zendesk ticket ID (e.g. INC-101)."
+          },
+          "comment": {
+            "type": "string",
+            "description": "Customer-facing resolution comment."
+          },
+          "status": {
+            "type": "string",
+            "description": "New status (e.g. Resolved, Solved, Open)."
+          }
+        },
+        "required": ["ticket_id", "comment", "status"]
+      },
       "annotations": {
         "title": "Update Zendesk Ticket",
         "readOnlyHint": false,

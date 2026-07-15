@@ -11,5 +11,8 @@ __pycache__/
 .agent_engine_id
 .agent_identity
 
+# Local session DB written by `adk web .` / `adk run .`
+.adk/
+
 # macOS
 .DS_Store

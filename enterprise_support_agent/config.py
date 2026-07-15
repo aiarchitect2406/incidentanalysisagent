@@ -58,6 +58,20 @@ def location() -> str:
     return _from_env("GOOGLE_CLOUD_LOCATION", default="us-central1")
 
 
+def agent_engine_location() -> str:
+    """Region that HOSTS the Agent Engine (reasoningEngine) resource itself —
+    i.e. the `location=` passed to `vertexai.Client(...)` at deploy time.
+
+    Deliberately separate from location(): Agent Engine hosting must be a
+    real supported region, but location() may be set to `global` in projects
+    where a Gemini model isn't regionally allowlisted (same reasoning as
+    model_armor_location() below, which stays regional for the same
+    structural reason). Defaults to location() so behavior is unchanged
+    unless a deploy explicitly needs to decouple them.
+    """
+    return _from_env("AGENT_ENGINE_LOCATION", default=location())
+
+
 def model_armor_location() -> str:
     """Model Armor is a regional service. Keep this pinned to a real region even
     when GOOGLE_CLOUD_LOCATION is `global`."""
@@ -97,12 +111,15 @@ def mcp_gateway_url() -> str:
 
 
 def mcp_gateway_transport() -> str:
-    """`streamable-http` (production target) or `sse` (existing deployed gateway).
+    """`streamable-http` (current mcp_server.py, mounted at `/mcp`) or `sse` (legacy `/sse`).
 
-    Defaults to `sse` to match the currently deployed sre-mcp-gateway on Cloud Run.
-    Set MCP_GATEWAY_TRANSPORT=streamable-http after redeploying with the new server.
+    Defaults to `streamable-http` — confirmed live against a fresh deploy that
+    mcp_server.py's `mcp.run(transport="streamable-http")` only serves `/mcp`;
+    the old `sse` default caused every MCP tool call to silently 404 and the
+    agent fell back to inventing tool results. Set MCP_GATEWAY_TRANSPORT=sse
+    only if pointed at an old gateway still running the legacy transport.
     """
-    return _from_env("MCP_GATEWAY_TRANSPORT", default="sse").lower()
+    return _from_env("MCP_GATEWAY_TRANSPORT", default="streamable-http").lower()
 
 
 def mcp_gateway_requires_auth() -> bool:

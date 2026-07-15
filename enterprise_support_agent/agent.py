@@ -117,16 +117,23 @@ def _build_connection_params(audience: str, *, via_agent_gateway: bool):
     needs_manual_auth = config.mcp_gateway_requires_auth() and not via_agent_gateway
     if transport == "streamable-http":
         if needs_manual_auth:
+            # Both StreamableHTTPConnectionParams.headers and
+            # SseConnectionParams.headers are plain dicts, not callables —
+            # confirmed live via pydantic ValidationError ("Input should be a
+            # valid dictionary") when a callable was passed to either one.
+            # Minting once means the token (~1hr TTL) isn't refreshed for a
+            # very long-lived session, but that's the best fit for what these
+            # connection params actually accept.
             return StreamableHTTPConnectionParams(
                 url=f"{audience.rstrip('/')}/mcp",
-                headers=id_token_headers_for(audience),
+                headers=id_token_headers_for(audience)(),
             )
         return StreamableHTTPConnectionParams(url=f"{audience.rstrip('/')}/mcp")
-    # SSE (legacy / current deployed gateway).
+    # SSE (legacy).
     if needs_manual_auth:
         return SseConnectionParams(
             url=f"{audience.rstrip('/')}/sse",
-            headers=id_token_headers_for(audience),
+            headers=id_token_headers_for(audience)(),
         )
     return SseConnectionParams(
         url=f"{audience.rstrip('/')}/sse",
@@ -159,9 +166,44 @@ def _build_skill_toolset() -> SkillToolset:
             GCPSkillRegistry,
         )
 
+        class _PickleSafeGCPSkillRegistry(GCPSkillRegistry):
+            """GCPSkillRegistry holds a live vertexai.Client (`_client`) whose
+            gRPC channel contains an unpicklable `_thread.lock` — confirmed by
+            reproducing `cloudpickle.dumps(registry)` locally, which is exactly
+            what Agent Engine deploy does to the whole agent tree. Same
+            problem, same fix pattern as _PickleSafeMcpToolset above: drop the
+            live client before serialization, rebuild it identically to
+            GCPSkillRegistry.__init__ on the other side.
+            """
+
+            def __deepcopy__(self, memo):
+                cls = self.__class__
+                result = cls.__new__(cls)
+                memo[id(self)] = result
+                for k, v in self.__dict__.items():
+                    if k == "_client":
+                        setattr(result, k, None)
+                    else:
+                        setattr(result, k, copy.deepcopy(v, memo))
+                return result
+
+            def __getstate__(self):
+                state = self.__dict__.copy()
+                state["_client"] = None
+                return state
+
+            def __setstate__(self, state):
+                self.__dict__.update(state)
+                import vertexai as _vertexai
+                self._client = _vertexai.Client(
+                    project=self.project_id,
+                    location=self.location,
+                    http_options={"api_version": "v1beta1"},
+                ).aio
+
         # Skill Registry is a regional service; keep it on us-central1 even if
         # GOOGLE_CLOUD_LOCATION is `global` for the model.
-        registry = GCPSkillRegistry(
+        registry = _PickleSafeGCPSkillRegistry(
             project_id=config.project_id(),
             location="us-central1",
         )

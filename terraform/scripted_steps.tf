@@ -8,25 +8,20 @@
 # diverge from what these scripts create).
 
 # ---- Model Armor template -----------------------------------------------
-# Confirmed gcloud syntax — see
-# https://docs.cloud.google.com/model-armor/manage-templates#create-ma-template
+# Uses the Python SDK (scripts/ensure_model_armor_template.py) rather than
+# `gcloud model-armor`, which was observed to fail with a PERMISSION_DENIED
+# / "authenticated as None" error under ADC-override credential resolution
+# in at least one real environment — even for an account with roles/owner
+# that worked fine for every other gcloud command. The SDK resolves ADC the
+# same way the rest of this repo's Python does, sidestepping that class of
+# credential-resolution bug entirely. See that script's docstring for detail.
 resource "null_resource" "model_armor_template" {
   triggers = {
     template_name = local.model_armor_name
   }
 
   provisioner "local-exec" {
-    command = <<-EOT
-      gcloud model-armor templates describe ${local.model_armor_name} \
-        --project=${var.project_id} --location=${var.region} >/dev/null 2>&1 || \
-      gcloud model-armor templates create ${local.model_armor_name} \
-        --project=${var.project_id} --location=${var.region} \
-        --rai-settings-filters='[{ "filterType": "HATE_SPEECH", "confidenceLevel": "MEDIUM_AND_ABOVE" },{ "filterType": "HARASSMENT", "confidenceLevel": "MEDIUM_AND_ABOVE" },{ "filterType": "DANGEROUS", "confidenceLevel": "MEDIUM_AND_ABOVE" },{ "filterType": "SEXUALLY_EXPLICIT", "confidenceLevel": "MEDIUM_AND_ABOVE" }]' \
-        --basic-config-filter-enforcement=enabled \
-        --pi-and-jailbreak-filter-settings-enforcement=enabled \
-        --pi-and-jailbreak-filter-settings-confidence-level=HIGH \
-        --malicious-uri-filter-settings-enforcement=enabled
-    EOT
+    command = "python3 ${var.repo_root}/scripts/ensure_model_armor_template.py ${local.model_armor_name} ${var.project_id} ${var.region}"
   }
 
   depends_on = [google_project_service.apis]
