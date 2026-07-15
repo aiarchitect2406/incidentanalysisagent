@@ -125,10 +125,21 @@ def mcp_gateway_transport() -> str:
 def mcp_gateway_requires_auth() -> bool:
     """Whether to attach a Google ID token to MCP requests.
 
-    Defaults to False because the existing gateway is public. Flip to True after
-    redeploying with --no-allow-unauthenticated and binding roles/run.invoker.
+    Defaults to True: the Terraform-provisioned Cloud Run gateway never sets
+    --allow-unauthenticated (see terraform/cloud_run.tf) — confirmed live with
+    a bare curl returning 403 — so it's always private. This can't be
+    controlled via env var at deploy time the way other settings are: this
+    function is called from agent.py's module-level `_build_mcp_gateway()`,
+    which runs at IMPORT time on the DEPLOYING machine (when
+    deploy_skills_agent.py does `from enterprise_support_agent.agent import
+    root_agent`), not inside the deployed container — so an env var set only
+    in AdkApp's env_vars (which only takes effect once the container starts)
+    arrives too late; the connection params (with or without an auth header)
+    are already frozen and pickled by then. Confirmed live: this exact gap
+    caused every deployed-agent MCP call to 403 with no Authorization header
+    at all, even after MCP_GATEWAY_REQUIRES_AUTH=true was added to env_vars.
     """
-    return _from_env("MCP_GATEWAY_REQUIRES_AUTH", default="false").lower() in {"1", "true", "yes"}
+    return _from_env("MCP_GATEWAY_REQUIRES_AUTH", default="true").lower() in {"1", "true", "yes"}
 
 
 def agent_gateway_url() -> str:

@@ -101,6 +101,15 @@ def deploy() -> str:
             "AGENT_MODEL": config.model_name(),
             "MODEL_ARMOR_TEMPLATE": config.model_armor_template(),
             "MCP_GATEWAY_URL": os.environ.get("MCP_GATEWAY_URL", ""),
+            # Hardcoded true, not inherited from the deploy script's own env:
+            # the Terraform-provisioned Cloud Run gateway never sets
+            # --allow-unauthenticated (see terraform/cloud_run.tf), so it's
+            # ALWAYS private — confirmed live with a bare curl returning 403.
+            # Without this, the deployed container connects with no ID
+            # token, every MCP call gets rejected, and the agent silently
+            # has zero MCP tools (it then falls back to looping on
+            # SkillToolset's generic tools instead).
+            "MCP_GATEWAY_REQUIRES_AUTH": "true",
             "AGENT_GATEWAY_URL": os.environ.get("AGENT_GATEWAY_URL", ""),
             "LAB_USER_ID": lab_user_id,
         },
