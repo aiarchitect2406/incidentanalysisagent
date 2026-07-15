@@ -75,6 +75,23 @@ def deploy() -> str:
         http_options=dict(api_version="v1beta1"),
     )
 
+    # AdkApp reads project/location from the LEGACY google.cloud.aiplatform
+    # initializer.global_config singleton at construction time (not from the
+    # vertexai.Client instance above, which is a separate, newer client and
+    # never touches that global) — confirmed by reading
+    # vertexai/preview/reasoning_engines/templates/adk.py's AdkApp.__init__,
+    # which does `self._tmpl_attrs["location"] = initializer.global_config
+    # .location`. Skipping this call left that global at its untouched
+    # default (constants.DEFAULT_REGION, "us-central1", UNLESS something else
+    # already nudged it to "global" first — either way, uncontrolled), which
+    # gets cloudpickled into `_tmpl_attrs` and baked into the deployed
+    # container. At runtime the container's own AdkApp.set_up() constructs
+    # its VertexAiSessionService straight from that baked-in location —
+    # confirmed live via Cloud Logging: it did NOT match `engine_location`,
+    # so every session lookup 404'd with "The ReasoningEngine does not
+    # exist" even though the resource genuinely existed in `engine_location`.
+    vertexai.init(project=project, location=engine_location, staging_bucket=bucket)
+
     app = AdkApp(
         agent=root_agent,
         enable_tracing=True,

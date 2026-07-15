@@ -39,8 +39,10 @@ from __future__ import annotations
 import copy
 import pathlib
 import sys
+from functools import cached_property
 
 from google.adk.agents import Agent
+from google.adk.models import Gemini
 from google.adk.skills import load_skill_from_dir
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import (
@@ -49,6 +51,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 )
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.adk.tools.skill_toolset import SkillToolset
+from google.genai import Client as GenAiClient
 
 from . import config
 from .auth_provider import id_token_headers_for
@@ -219,6 +222,24 @@ def _build_skill_toolset() -> SkillToolset:
         return SkillToolset(skills=[incident_skill])
 
 
+class _GlobalGemini(Gemini):
+    """Pins the model client's location to "global", hardcoded — confirmed live
+    that gemini-3.5-flash 404s from real regions in this project (e.g.
+    us-central1) and only resolves from "global". Overriding api_client here
+    means GOOGLE_CLOUD_LOCATION can be set to whatever the Agent Engine
+    resource's own hosting region requires (see config.agent_engine_location())
+    without also having to double as the model's location — the two are
+    unrelated and were getting tangled through env var propagation."""
+
+    @cached_property
+    def api_client(self) -> GenAiClient:
+        return GenAiClient(vertexai=True, project=config.project_id(), location="global")
+
+
+def _build_model() -> _GlobalGemini:
+    return _GlobalGemini(model=config.model_name())
+
+
 # ---- MCP toolset partitioned across sub-agents (least privilege) ------------
 _READ_AND_REMEDIATE_TOOLS = {
     "zendesk_get_ticket",
@@ -243,7 +264,7 @@ _skills = _build_skill_toolset()
 # ---- Sub-agents -------------------------------------------------------------
 notification_agent = Agent(
     name="notification_agent",
-    model=config.model_name(),
+    model=_build_model(),
     description="Writes customer-facing resolution updates to Zendesk. Sole owner of zendesk_update_ticket.",
     instruction=(
         "You are the customer notification specialist. The remediation agent will hand you "
@@ -259,7 +280,7 @@ notification_agent = Agent(
 
 remediation_agent = Agent(
     name="remediation_agent",
-    model=config.model_name(),
+    model=_build_model(),
     description="Executes the incident-escalator runbook: triage, escalate, auto-remediate JVM OOM crashes.",
     instruction=(
         "You execute the incident-escalator runbook. First call `load_skill` with "
@@ -278,7 +299,7 @@ remediation_agent = Agent(
 # ---- Coordinator ------------------------------------------------------------
 triage_agent = Agent(
     name="triage_agent",
-    model=config.model_name(),
+    model=_build_model(),
     description="Coordinator that routes incoming support requests to the right specialist sub-agent.",
     instruction=(
         "You are the enterprise support coordinator. When the user asks to triage, "

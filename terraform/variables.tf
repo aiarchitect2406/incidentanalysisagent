@@ -4,7 +4,7 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "Region for regional resources (Cloud Run, Model Armor, Agent Registry, staging bucket). Must match enterprise_support_agent/config.py's model_armor_location() / location() for the deployed agent to find them."
+  description = "Region for regional resources (Cloud Run, Model Armor, Agent Registry, staging bucket, and the reasoningEngine/Agent Engine resource itself). Must match enterprise_support_agent/config.py's model_armor_location() / agent_engine_location() for the deployed agent to find them."
   type        = string
   default     = "us-central1"
 }

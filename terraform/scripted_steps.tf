@@ -64,9 +64,17 @@ resource "null_resource" "deploy_agent" {
   }
 
   provisioner "local-exec" {
+    # GOOGLE_CLOUD_LOCATION=global is hardcoded on purpose, not derived from
+    # var.region: it's what the DEPLOYED CONTAINER uses for its own Gemini
+    # model calls, and gemini-3.5-flash 404s from real regions (confirmed
+    # live) but resolves from "global" in this project. AGENT_ENGINE_LOCATION
+    # is the separate, real region that hosts the reasoningEngine resource
+    # itself — see enterprise_support_agent/config.py's location() vs.
+    # agent_engine_location().
     command = <<-EOT
       GOOGLE_CLOUD_PROJECT=${var.project_id} \
-      GOOGLE_CLOUD_LOCATION=${var.region} \
+      GOOGLE_CLOUD_LOCATION=global \
+      AGENT_ENGINE_LOCATION=${var.region} \
       AGENT_STAGING_BUCKET=gs://${google_storage_bucket.staging.name} \
       make -C ${var.repo_root} deploy-agent LAB_USER_ID=${local.suffix}
     EOT

@@ -26,8 +26,33 @@ from dataclasses import dataclass, field
 import vertexai
 from google.cloud import logging as cloud_logging
 from vertexai import agent_engines
+from vertexai.agent_engines import _agent_engines
 
 from enterprise_support_agent import config
+
+# Upstream SDK bug (confirmed against google-cloud-aiplatform 1.156.0 and
+# 1.161.0): _wrap_bidi_stream_query_operation defines its inner `_method` but
+# never returns it, so it hands back None. Every AdkApp now registers a
+# `bidi_stream_query` operation by default, and _register_api_methods_or_raise
+# loops over ALL operation schemas with no per-item error isolation — one
+# None method blows up the whole registration (`None.__name__` in the
+# assignment right after), which agent_engines.get()/AgentEngine.__init__
+# swallows into a warning and silently skips binding EVERY dynamic method,
+# including stream_query. Without this patch, remote.stream_query(...) below
+# doesn't exist at all and every scenario sees an empty response. We don't
+# use bidi streaming here, so restoring the stub's original (if unreachable)
+# behavior is enough to unblock registration of the methods we do use.
+def _fixed_wrap_bidi_stream_query_operation(*, method_name: str):
+    async def _method(self, **kwargs):
+        raise NotImplementedError(
+            f"{method_name} is not implemented, please use GenAI SDK Agent "
+            "Engine live API client instead."
+        )
+
+    return _method
+
+
+_agent_engines._wrap_bidi_stream_query_operation = _fixed_wrap_bidi_stream_query_operation
 
 GREEN = "\033[92m"
 RED = "\033[91m"
@@ -80,7 +105,15 @@ def _load_resource_name() -> str:
 def _stream_and_collect(
     remote, prompt: str, session_id: str, user_id: str = "smoke-test"
 ) -> tuple[str, list[dict]]:
-    """Send the prompt to the remote Agent Runtime and return (final_text, raw_events)."""
+    """Send the prompt to the remote Agent Runtime and return (final_text, raw_events).
+
+    The deployed Runner is constructed with the default auto_create_session=False
+    (confirmed via google/adk/runners.py), so a session_id that doesn't already
+    exist raises SessionNotFoundError instead of being silently created — unlike
+    what an ADK Web UI session-picker does for you interactively. Create it
+    explicitly first.
+    """
+    remote.create_session(user_id=user_id, session_id=session_id)
     chunks: list[str] = []
     events: list[dict] = []
     for event in remote.stream_query(message=prompt, session_id=session_id, user_id=user_id):
