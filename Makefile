@@ -111,13 +111,12 @@ deploy-agent: env-check ## Deploy the agent to Agent Runtime; writes .agent_engi
 
 bind-agent-identity: env-check ## Grant the deployed agent's OWN identity (not the shared SA) invoker on the MCP gateway
 	@if [ ! -f .agent_identity ]; then \
-	  echo "No .agent_identity file. Either 'make deploy-agent' hasn't run yet, or"; \
-	  echo "identity_type=AGENT_IDENTITY wasn't accepted (Preview feature — check the"; \
-	  echo "$(SCRIPTS_DIR)/deploy_skills_agent.py log for an 'agent_identity_missing' warning) and the"; \
-	  echo "shared $(RUNTIME_SA) binding from 'make deploy-gateway' is what's actually in effect."; \
-	  exit 1; \
-	fi
-	@identity=$$(cat .agent_identity); \
+	  echo "No .agent_identity file — deploy-agent ran without AGENT_IDENTITY_ENABLED=true (the"; \
+	  echo "default), or identity_type=AGENT_IDENTITY wasn't accepted (Preview feature). Either way"; \
+	  echo "the shared $(RUNTIME_SA) binding from 'make deploy-gateway' is already in effect via"; \
+	  echo "Terraform-managed IAM. Nothing to (re)bind — skipping."; \
+	else \
+	  identity=$$(cat .agent_identity); \
 	  case "$$identity" in \
 	    principal://*) member="$$identity" ;; \
 	    *) member="principal://$$identity" ;; \
@@ -130,7 +129,8 @@ bind-agent-identity: env-check ## Grant the deployed agent's OWN identity (not t
 	    --region=$(LOCATION) \
 	    --member="$$member" \
 	    --role="roles/run.invoker" \
-	    --project=$(PROJECT_ID)
+	    --project=$(PROJECT_ID); \
+	fi
 
 eval: env-check ## Run the eval set against the deployed agent (populates Evaluation tab)
 	$(PYTHON) $(TESTS_DIR)/eval_run.py

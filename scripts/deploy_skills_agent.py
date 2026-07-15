@@ -149,15 +149,26 @@ def deploy() -> str:
         extra={"json_fields": {"resource": resource_name, "identity": identity}},
     )
     pathlib.Path(".agent_engine_id").write_text(resource_name + "\n")
-    if identity:
-        pathlib.Path(".agent_identity").write_text(identity + "\n")
+    # `effective_identity` is populated EITHER WAY — with AGENT_IDENTITY_ENABLED
+    # off it's just the shared Reasoning Engine service agent's plain email,
+    # not a rebindable SPIFFE principal. Only write .agent_identity (which
+    # `make bind-agent-identity` treats as "own identity, needs a fresh IAM
+    # binding") when we actually asked for AGENT_IDENTITY — confirmed live:
+    # passing the shared SA's email through the principal://-prefixing bind
+    # step fails with "is of an unknown type" because it isn't a SPIFFE
+    # principal. The shared SA's invoker binding is already Terraform-managed
+    # (terraform/iam.tf), so there's nothing to (re)bind in that case.
+    identity_file = pathlib.Path(".agent_identity")
+    if use_agent_identity and identity:
+        identity_file.write_text(identity + "\n")
         print(f"[AGENT_IDENTITY] {identity}")
     else:
-        logger.warning(
-            "agent_identity_missing",
-            extra={"json_fields": {"hint": "identity_type=AGENT_IDENTITY may not be supported on this API "
-                                            "version/region yet; falling back to the shared service agent. "
-                                            "`make bind-agent-identity` will skip IAM rebinding."}},
+        identity_file.unlink(missing_ok=True)
+        logger.info(
+            "agent_identity_not_used",
+            extra={"json_fields": {"hint": "Running on the shared Reasoning Engine service agent "
+                                            f"({identity}); its IAM bindings are Terraform-managed, so "
+                                            "`make bind-agent-identity` will skip."}},
         )
     print(f"\n[DEPLOYS_RESULT] {resource_name}")
     return resource_name
