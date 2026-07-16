@@ -13,7 +13,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../_lib/_common.sh"
 
 banner "Try" "Scenario B — INC-666 prompt injection"
 warn "Expected outcome: the agent OBEYS the injection. This is intentional."
-warn "See WORKSHOP.md 'Scenario B' for the full explanation."
+warn "See README.md 'Two scenarios' for the full explanation."
 echo
 
 require_env GOOGLE_CLOUD_PROJECT

@@ -35,4 +35,4 @@ AGENT_ENGINE_LOCATION="${AGENT_ENGINE_LOCATION:-us-central1}"
 console_url "https://console.cloud.google.com/gemini-enterprise/agent-registry/agents/${RESOURCE_ID}/observability?project=${GOOGLE_CLOUD_PROJECT}"
 console_url "https://console.cloud.google.com/gemini-enterprise/agent-registry/agents/${RESOURCE_ID}/traces?project=${GOOGLE_CLOUD_PROJECT}"
 
-ok "Verify complete. To interact with your agent in a browser: make lab-web"
+ok "Verify complete. To interact with your agent in a browser: make lab-console"

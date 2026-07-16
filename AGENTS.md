@@ -60,12 +60,6 @@ scripts/
 tests/
 ├── smoke_test.py               end-to-end against deployed agent
 └── eval_run.py                 ADK evaluation harness
-
-terraform/                      LEGACY — scheduled for deletion once
-                                make lab-admin-setup proves out. Do not
-                                add new features here.
-
-WORKSHOP.md                     single-page engineer quickstart
 ```
 
 ## Facts you must know before touching code
@@ -195,7 +189,7 @@ make lab-admin-setup
 export GOOGLE_CLOUD_PROJECT=<workshop project>
 export LAB_USER_ID=<yourname>
 make lab-deploy      # deploy YOUR Agent Engine (no auto-smoke)
-make lab-web         # ADK Web UI (recommended)
+make lab-console     # print Cloud Console URLs (Traces, Logging, Agent Registry) for your agent
 make lab-try-a       # Scenario A via terminal, pretty-printed
 make lab-try-b       # Scenario B (prompt injection, does NOT block)
 make lab-check       # headless smoke test with pass/fail
@@ -273,13 +267,6 @@ enterprise_trigger_connector_sync, transfer_to_agent, zendesk_update_ticket`.
    `gemini-3.5-flash` can take up to 5 minutes to respond on prompts with
    very long context. Use `--max-time 300` on curl at minimum.
 
-## Terraform status
-
-`terraform/` still exists but is legacy. Scheduled for deletion once
-`make lab-admin-setup` is proven out end-to-end. If you're adding new
-provisioning, add it to `scripts/lab/admin/`, not to Terraform. Do not
-port existing scripts into Terraform.
-
 ## What's intentionally NOT in this repo
 
 - App-layer prompt-injection callbacks (deleted, reasons above)
@@ -292,6 +279,9 @@ port existing scripts into Terraform.
   natively)
 - Custom Gemini model client (env vars do the same thing for free)
 - A unit test suite (smoke test against real deploy is the verification)
+- Terraform (deleted — this repo provisions everything through
+  `scripts/lab/admin/` and `scripts/lab/engineer/`. Do not re-introduce it;
+  if you're adding new provisioning, add a numbered script instead)
 
 Any AI agent that finds itself about to add one of the above should stop
 and re-read this file — someone already tried and it was net-negative.

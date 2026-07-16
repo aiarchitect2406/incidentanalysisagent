@@ -123,8 +123,9 @@ def deploy() -> str:
     # roles/aiplatform.user to the agent's own principal, and that grant
     # alone still wasn't sufficient/hadn't propagated. Defaults OFF so a
     # fresh deploy works out of the box on the shared SA (which already has
-    # every IAM grant it needs from terraform/iam.tf); opt in explicitly
-    # once you've worked through the full IAM grant set for the identity.
+    # every IAM grant it needs, granted by scripts/lab/admin/02-mcp-gateway.sh);
+    # opt in explicitly once you've worked through the full IAM grant set for
+    # the identity.
     use_agent_identity = _from_env_bool("AGENT_IDENTITY_ENABLED", default=False)
     agent_engine_config = {
         "display_name": config.agent_display_name(),
@@ -179,8 +180,9 @@ def deploy() -> str:
     # binding") when we actually asked for AGENT_IDENTITY — confirmed live:
     # passing the shared SA's email through the principal://-prefixing bind
     # step fails with "is of an unknown type" because it isn't a SPIFFE
-    # principal. The shared SA's invoker binding is already Terraform-managed
-    # (terraform/iam.tf), so there's nothing to (re)bind in that case.
+    # principal. The shared SA's invoker binding is already set up by
+    # scripts/lab/admin/02-mcp-gateway.sh, so there's nothing to (re)bind in
+    # that case.
     identity_file = pathlib.Path(".agent_identity")
     if use_agent_identity and identity:
         identity_file.write_text(identity + "\n")

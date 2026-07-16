@@ -38,8 +38,9 @@ def lab_user_id() -> str:
     project don't collide on resource names (Cloud Run service, Model Armor
     template, Skill Registry skill ID, Agent Engine display name, ...).
 
-    Must match the `lab_user_id` Terraform variable used for the same run —
-    see terraform/variables.tf. Empty string means "solo/dev run, no suffix".
+    Must match the `LAB_USER_ID` env var used for the same run across
+    `scripts/lab/{admin,engineer}/*.sh`. Empty string means "solo/dev run,
+    no suffix".
     """
     return _from_env("LAB_USER_ID", default="")
 
@@ -133,9 +134,10 @@ def mcp_gateway_transport() -> str:
 def mcp_gateway_requires_auth() -> bool:
     """Whether to attach a Google ID token to MCP requests.
 
-    Defaults to True: the Terraform-provisioned Cloud Run gateway never sets
-    --allow-unauthenticated (see terraform/cloud_run.tf) — confirmed live with
-    a bare curl returning 403 — so it's always private. This can't be
+    Defaults to True: the Cloud Run gateway provisioned by
+    `scripts/lab/admin/02-mcp-gateway.sh` never sets --allow-unauthenticated —
+    confirmed live with a bare curl returning 403 — so it's always private.
+    This can't be
     controlled via env var at deploy time the way other settings are: this
     function is called from agent.py's module-level `_build_mcp_gateway()`,
     which runs at IMPORT time on the DEPLOYING machine (when
