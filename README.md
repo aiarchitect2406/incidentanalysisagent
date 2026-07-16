@@ -146,7 +146,13 @@ python3 -m venv .venv && source .venv/bin/activate && pip install -r requirement
 
 ## Step-by-step walkthrough
 
-~30–45 minutes end to end. Skip Step 1 if your instructor already ran it for a shared workshop project.
+~20–30 minutes end to end. Skip Step 1 if your instructor already ran it for a shared workshop project.
+
+> **Note for instructors:** Step 1 is a one-time setup per project — you run it, not each engineer.
+> Once it's done, tell your engineers: the `GOOGLE_CLOUD_PROJECT` to use, that each of them needs their
+> own `LAB_USER_ID` (first name, lowercase, no spaces — this is what keeps their resources from
+> colliding with each other), and grant everyone `roles/aiplatform.user` on the project ahead of time
+> so `make lab-deploy` doesn't fail on permissions mid-session.
 
 ### Step 1 — Instructor: provision shared infra (once per project, ~10 min)
 
@@ -192,16 +198,7 @@ make lab-try-b    # Scenario B (INC-666 prompt injection)
 make lab-check    # Scenario B's "blocked" assertion is expected to FAIL in this lab — see above
 ```
 
-### Step 4 — Make your first change (the "no redeploy" moment)
-
-The runbook lives in **Skill Registry**, not baked into the agent's container — changes take effect on the next run, no binary redeploy. To feel this:
-
-1. Edit [`enterprise_support_agent/skills/incident-escalator/SKILL.md`](./enterprise_support_agent/skills/incident-escalator/SKILL.md) — a small, safe change (e.g. one bullet in the final summary).
-2. Re-publish: `bash scripts/lab/admin/04-publish-skill.sh` (instructor-run — it's a shared skill, not per-engineer).
-3. Run Scenario A again (`make lab-try-a`) and confirm the new text shows up in the final summary.
-4. Nobody rebuilt a container, redeployed an agent, or touched Terraform — only the Skill Registry entry changed. **Runbook = data, agent = code.**
-
-### Step 5 — Clean up
+### Step 4 — Clean up
 
 ```bash
 make lab-teardown         # each engineer: deletes only YOUR Agent Engine instance + staging bucket
