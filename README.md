@@ -57,7 +57,7 @@ flowchart LR
   classDef sec   fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d,stroke-width:2px
   classDef ext   fill:#f1f5f9,stroke:#475569,color:#0f172a,stroke-width:2px
 
-  DEV["Engineer<br/>Antigravity IDE / ADK Web UI"]:::user
+  DEV["Engineer<br/>Antigravity IDE / GCP Console Playground"]:::user
 
   subgraph AGENTS["Multi-agent system (deployed to Agent Runtime)"]
     T["triage_agent<br/>coordinator"]:::agent
@@ -105,7 +105,7 @@ For a fuller version with all four GEAP pillars called out, see [`architecture-o
 
 ## Two scenarios
 
-The lab ships two end-to-end scenarios. **You run them yourself** in the ADK Web UI in Step 4 of the [User Guide](./enterprise_support_agent/docs/USER_GUIDE.md).
+The lab ships two end-to-end scenarios. **You run them yourself** in the GCP Console Playground or via CLI as outlined in the [User Guide](./enterprise_support_agent/docs/USER_GUIDE.md).
 
 | Scenario | Ticket | What it demonstrates | Narrated walkthrough |
 |---|---|---|---|
@@ -116,7 +116,7 @@ Both render inline on GitHub (Mermaid + tables) — no cloning required to previ
 
 ## Quick start
 
-The **[full guide is at `enterprise_support_agent/docs/USER_GUIDE.md`](./enterprise_support_agent/docs/USER_GUIDE.md)** — a seven-step, Antigravity-driven walkthrough that takes 60–90 minutes end to end. It covers everything: connecting Antigravity to your GCP project, standing the stack up, running the scenarios yourself in the ADK Web UI, making a live runbook change without redeploying, and clean up.
+The **[full guide is at `enterprise_support_agent/docs/USER_GUIDE.md`](./enterprise_support_agent/docs/USER_GUIDE.md)** — a six-step, Antigravity-driven walkthrough that takes 45–60 minutes end to end. It covers everything: connecting Antigravity to your GCP project, standing the stack up, running the scenarios yourself in the Google Cloud Console Playground, making a live runbook change without redeploying, and clean up.
 
 **For the impatient**, once you have prerequisites in place:
 
@@ -137,10 +137,10 @@ pip install -r requirements.txt
 make tf-apply LAB_USER_ID=$LAB_USER_ID
 make demo-ready LAB_USER_ID=$LAB_USER_ID
 
-# 5. Start the ADK Web UI, pointed at your deployed agent
-make web LAB_USER_ID=$LAB_USER_ID
-# then open http://127.0.0.1:8000 and try:
-#   Resolve enterprise support ticket INC-101 end-to-end.
+# 5. Run Scenario A via terminal pretty-print
+make lab-try-a LAB_USER_ID=$LAB_USER_ID
+# Or open the GCP Console Playground link via:
+make lab-console LAB_USER_ID=$LAB_USER_ID
 ```
 
 **Prerequisites in detail:**

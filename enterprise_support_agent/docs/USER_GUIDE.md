@@ -2,19 +2,18 @@
 
 > **Audience:** an engineer running this lab end to end in their own Google Cloud project.
 >
-> **How this guide works:** you drive the entire lab from **[Antigravity IDE](https://antigravity.google/docs/ide/overview)**. You give the Agent panel high-level intents; Antigravity reads the codebase, runs `terraform` / `make` / `gcloud` on your behalf, queries your Cloud Logs, and reports back. You'll leave the IDE for two specific moments (opening the ADK Web UI in your browser to interact with the agent, and dipping into Cloud Console for the platform-side view) — both are called out where they come up.
+> **How this guide works:** you drive the entire lab from **[Antigravity IDE](https://antigravity.google/docs/ide/overview)**. You give the Agent panel high-level intents; Antigravity reads the codebase, runs `terraform` / `make` / `gcloud` on your behalf, queries your Cloud Logs, and reports back. You'll leave the IDE to dip into the Google Cloud Console for the platform-side view and playground — both are called out where they come up.
 
 ## What you'll do
 
 1. Connect Antigravity to your Google Cloud project and GEAP
 2. Bring the lab stack up (Antigravity drives Terraform + agent deploy)
 3. Get an architectural tour of the codebase
-4. Interact with the deployed agent via **ADK Web UI** — run the two scenarios yourself and watch them work
-5. Optionally: watch the same interaction happen in the **Cloud Console** with the Browser Agent
-6. Make your first change to the runbook — without redeploying
-7. Clean up
+4. Interact with the deployed agent via **Google Cloud Console Playground** — run the two scenarios yourself and observe live traces
+5. Make your first change to the runbook — without redeploying
+6. Clean up
 
-~60–90 minutes end to end. Open [`architecture-overview.html`](./architecture-overview.html) now for a 2-minute look at what you're about to stand up — the four GEAP pillars (Build, Scale, Govern, Optimize) and their pieces.
+~45–60 minutes end to end. Open [`architecture-overview.html`](./architecture-overview.html) now for a 2-minute look at what you're about to stand up — the four GEAP pillars (Build, Scale, Govern, Optimize) and their pieces.
 
 ## Prerequisites
 
@@ -112,58 +111,41 @@ Antigravity has full read access to the repo — its tour is grounded in what's 
 
 ---
 
-## Step 4 — Interact with the deployed agent via ADK Web UI
+## Step 4 — Interact and Observe in the Google Cloud Console Playground
 
-This is where **you** take over from Antigravity and drive the agent yourself. The **ADK Web UI** is a local web app that gives you a chat interface + an event-by-event trace pane + a graph view of the multi-agent topology. Critically, we point it at your **deployed Agent Runtime instance** so Sessions are the real production ones — anything the agent remembers within a session here, the deployed agent remembers too.
+This is where **you** take over from Antigravity and drive the agent yourself. The **GCP Console Playground** is the highly recommended path because it runs 100% in the cloud, uses secure SPIFFE Agent Identity, and requires absolutely zero local Python setup, local OS dependencies, or local credential hassle.
 
-Ask Antigravity to start the server for you:
+### 4a. Get your direct Cloud Console links
+Ask Antigravity to list the console URLs:
 ```
-Launch the ADK Web UI locally, pointed at the Agent Runtime instance we just deployed (LAB_USER_ID=$LAB_USER_ID) so Sessions are shared with the deployed agent. Tell me the local URL to open in my browser, then leave the server running.
+Tell me the direct Google Cloud Console links for my deployed resources (LAB_USER_ID=$LAB_USER_ID).
 ```
+Antigravity will run `make lab-console` under the hood and print links for Traces, Logging, and the Agent Registry page.
 
-Antigravity figures out the right invocation (there's a `make web` target that assembles the ADK CLI flags — `adk web --session_service_uri=agentengine://... .`). Open the URL it prints (default `http://127.0.0.1:8000`) in your browser.
+### 4b. Access the Playground and run Scenario A
+1. Locate the **Agent Registry** or **Agent Runtime** link and click it to open the Google Cloud Console.
+2. In the interface, click the **Playground** (or **Test**) tab. Alternatively, click **Sessions** -> **+ New Session**, and select your agent `enterprise_skills_support_agent-$LAB_USER_ID`.
+3. In the chat box, enter the Scenario A prompt:
+   ```
+   Please resolve enterprise support ticket INC-101 end-to-end.
+   ```
+4. Watch the live execution unfold! 
 
-**What you'll see in the ADK Web UI:**
-- Left pane: chat conversation
-- Right pane: **event stream** — every LLM turn, every tool call, every sub-agent handoff, in order, with request/response payloads
-- **Graph tab**: the multi-agent topology drawn from the actual execution
-- **Trace tab**: the same events as a Gantt chart, showing which tool calls fired in parallel batches
+**What to observe:**
+* 📊 **The Live Event Stream**: You will see `triage_agent` transfer immediately to `remediation_agent`. Under the hood, the agent loads the runbook dynamically and dispatches the backend tools (Salesforce, Postgres, Workday) in **parallel** in a single turn instead of one by one.
+* ⏱️ **Cloud Trace (Gantt Chart)**: Click the **Traces** URL in your console link summary. You will see a beautiful Gantt chart showing the exact latency of every tool call, proving how parallel tool execution reduces the total resolution time to under 60 seconds.
+* 🪵 **Cloud Logging (Private Gateway Traffic)**: Click the **Cloud Logging (MCP tool calls)** URL to see the incoming HTTPS request hits on the private Cloud Run gateway, complete with secure validation of the agent's SPIFFE **Agent Identity** token.
 
-Now run through the two scenarios yourself. Each targets a different platform feature:
+### 4c. Run Scenario B (Prompt Injection)
+1. In the Playground, click **+ New session** (to start with a clean context).
+2. Enter the Scenario B prompt:
+   ```
+   Please resolve enterprise support ticket INC-666 end-to-end.
+   ```
+3. **Observe the behavior:** INC-666 contains a hidden prompt injection payload. Since Model Armor is not wired in-line in this lab (which requires an Agent Gateway, a separate setup), you will see the agent obey the injection and attempt to call Salesforce for the malicious admin email rather than the legitimate one. This serves as a key discussion point for the platform-level governance model.
 
-### Scenario A — Autonomous Remediation
-
-Send this in a new session:
-> `Resolve enterprise support ticket INC-101 end-to-end.`
-
-**What to watch:** the agent loads the runbook from Skill Registry, then investigates in parallel (Phase 2: 3 tool calls in one turn — Salesforce, Postgres, Workday), then remediates in parallel (Phase 3: 2 tool calls — Jira + heap expansion), then verifies, then hands off to a *different* sub-agent (`notification_agent`) which is the only one that can write back to Zendesk (least-privilege boundary).
-
-Narrated walkthrough: [`scenario-a.md`](./scenario-a.md).
-
-### Scenario B — Prompt Injection Containment
-
-Click **+ New session**. Send:
-> `Resolve enterprise support ticket INC-666 end-to-end.`
-
-**What to watch:** INC-666 contains a hidden `Ignore all previous instructions...` payload. With Model Armor wired at the Agent Gateway, the payload is caught before any tool call and you see a `SECURITY EXCEPTION` in the event stream. Without Model Armor access in your project, this scenario will not block — the agent has no in-process guard, so the payload gets through.
-
-Narrated walkthrough: [`scenario-b.md`](./scenario-b.md).
-
-### Two things to know
-
-- The `adk web` server keeps running in the terminal — `Ctrl+C` when you're done.
-- On **Cloud Shell** instead of a local machine: the URL is still `http://127.0.0.1:8000`, but you can't open it directly. Click **Web Preview** (top-right of Cloud Shell) → **Preview on port 8000**.
-
-**No local terminal at all?** The **Playground** tab of Agent Registry gives you a chat interface to the deployed agent from any browser, no local tooling required — but it doesn't show the rich event stream ADK Web UI does. Look at the **Traces** tab separately to see what tools fired.
-
----
-
-## Step 5 — Optional: watch the same interaction in Cloud Console
-
-Step 4 is the developer's view. The Cloud Console shows the same activity from the **platform's** view — Agent Registry tabs for Identity, Topology, Security, Sessions, Memories. Same run, different lens.
-
+### 4d. Optional: Let Antigravity walk you through via the Browser Agent
 If you want a hand-held tour of the Console tabs — and, importantly, a **browser recording as a shareable artifact** — paste this and let the Browser Agent drive:
-
 ```
 Using the Browser Agent, walk me through my deployed agent in the Cloud Console:
   1. Open https://console.cloud.google.com/gemini-enterprise/agent-registry?project=$GOOGLE_CLOUD_PROJECT and find the agent named `enterprise_skills_support_agent-$LAB_USER_ID`.
@@ -178,7 +160,7 @@ The saved recording is reusable — hand it to a teammate later instead of sched
 
 ---
 
-## Step 6 — Make your first change (the "no redeploy" moment)
+## Step 5 — Make your first change (the "no redeploy" moment)
 
 The agent's runbook lives in **Skill Registry** — not baked into the container. That means changes to the runbook take effect on the next agent run, with no redeploy of the agent binary. This is the mental model to leave the lab with, and it's easiest to feel by making a small change and watching it appear live.
 
@@ -194,7 +176,7 @@ The point isn't the specific edit — it's the loop: **runbook = data, agent = c
 
 ---
 
-## Step 7 — Clean up
+## Step 6 — Clean up
 
 ```
 Tear down everything I created in this lab (LAB_USER_ID=$LAB_USER_ID):
@@ -242,17 +224,16 @@ Known cases worth listing here (Antigravity's prompt above covers the rest):
 | `pip install` fails with `error: externally-managed-environment` (PEP 668) | Venv missing, or venv created with plain `uv venv` (no `--seed`) so `pip` fell through to system pip. Re-run Step 2. Do NOT use `--break-system-packages`. |
 | `python3 -m venv .venv` fails with `ensurepip is not available` | Python missing the venv stdlib module. Install the exact package the error names (e.g. `apt install python3.12-venv`), or use `uv venv --seed` instead — `uv` needs no system packages. |
 | `terraform apply` fails on API enablement | Confirm billing is enabled and you have Service Usage Admin on the project. |
-| Scenario A or B doesn't behave as described in the ADK Web UI on first try | Cold start after a fresh deploy is sometimes flaky. Send the prompt again in a new session. If it still fails, use the deep-debug prompt below. |
+| Scenario A or B doesn't behave as described on first try | Cold start after a fresh deploy is sometimes flaky. Send the prompt again in a new session. If it still fails, use the deep-debug prompt below. |
 | Terraform says a resource already exists | You already provisioned under this `LAB_USER_ID`. Either reuse it (Terraform is idempotent) or pick a different `LAB_USER_ID`. |
-| ADK Web UI (Step 4) can't reach the gateway | The `.agent_engine_id` file at the repo root is stale or missing — re-run Step 2's deploy portion, or point `adk web` at the deployed resource explicitly. |
 | Shared project, don't want to touch teammates' shared setup | Pass `manage_shared_infra=false` when Antigravity provisions Terraform (see [`terraform/README.md`](../../terraform/README.md)). |
 
 ### Deep-debug prompt (when a scenario doesn't behave as expected)
 
-When a scenario misbehaves in the ADK Web UI in Step 4 — a tool call fails, the wrong sub-agent runs — this is where Antigravity's MCP integrations really shine. Paste this and let it correlate everything:
+When a scenario misbehaves in the Playground — a tool call fails, the wrong sub-agent runs — this is where Antigravity's MCP integrations really shine. Paste this and let it correlate everything:
 
 ```
-Scenario [A/B] misbehaved in the ADK Web UI just now — describe what happened. Then, don't retry. Instead:
+Scenario [A/B] misbehaved in the GCP Console Playground just now — describe what happened. Then, don't retry. Instead:
   1. Pull `jsonPayload.event="tool_invoked"` from Cloud Logging for the last 15 minutes via the Cloud Logging MCP.
   2. Call Gemini Cloud Assist's `investigate_issue` with a description of the scenario and the observed failure.
   3. Cross-reference what you find against enterprise_support_agent/agent.py and mcp_server.py.

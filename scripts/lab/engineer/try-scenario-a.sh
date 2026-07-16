@@ -4,9 +4,9 @@
 # against your deployed Agent Engine. No pass/fail assertions — just
 # fires the prompt and prints the tool sequence + final answer.
 #
-# Use this if you don't want to open the ADK Web UI. For the richer
-# interactive experience with the event stream / graph / trace tabs,
-# use `make lab-web` instead.
+# Use this for CLI-based execution. For the richer interactive
+# experience with the event stream, graph, and trace tabs, use the
+# GCP Console Playground (via `make lab-console`).
 # ─────────────────────────────────────────────────────────────────────
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib/_common.sh"
 

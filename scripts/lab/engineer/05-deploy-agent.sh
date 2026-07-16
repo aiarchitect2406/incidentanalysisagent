@@ -84,7 +84,7 @@ console_url "https://console.cloud.google.com/gemini-enterprise/agent-runtime/lo
 ok "Deploy complete."
 echo
 info "Try your agent — pick one:"
-info "  make lab-web      # ADK Web UI in a browser (recommended)"
-info "  make lab-try-a    # Scenario A (INC-101) via curl, pretty-printed"
-info "  make lab-try-b    # Scenario B (INC-666 injection) via curl"
+info "  make lab-console  # Get the Google Cloud Console Playground & Trace links (highly recommended)"
+info "  make lab-try-a    # Scenario A (INC-101) via CLI pretty-print"
+info "  make lab-try-b    # Scenario B (INC-666 injection) via CLI"
 info "  make lab-check    # Headless smoke test (pass/fail assertions)"
