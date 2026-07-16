@@ -3,7 +3,11 @@
 # For engineers:
 #   1. export GOOGLE_CLOUD_PROJECT=<project>  LAB_USER_ID=<yourname>
 #   2. make lab-deploy       (~4 minutes: your Agent Engine instance)
-#   3. make lab-web          (opens ADK Web UI)
+#   3. Try the scenarios (pick any):
+#        make lab-web          — ADK Web UI (recommended, richest view)
+#        make lab-try-a        — Scenario A (INC-101) via terminal
+#        make lab-try-b        — Scenario B (INC-666 prompt injection)
+#        make lab-check        — Headless smoke test (pass/fail assertions)
 #   4. make lab-teardown     (when done: deletes only YOUR agent)
 #
 # For workshop admins (once, before engineers arrive):
@@ -32,7 +36,7 @@ export PYTHONPATH            := .
 
 .PHONY: help env-check env-check-lab-user \
         lab-admin-setup lab-admin-teardown \
-        lab-deploy lab-verify lab-web lab-teardown lab-console \
+        lab-deploy lab-web lab-try-a lab-try-b lab-check lab-teardown lab-console \
         local smoke-test eval
 
 help:
@@ -65,27 +69,30 @@ lab-admin-teardown: env-check ## ADMIN ONLY: tear down shared workshop infra
 
 # ================ ENGINEER ==============
 
-lab-deploy: env-check-lab-user ## Deploy YOUR agent (uses shared MCP gateway)
+lab-deploy: env-check-lab-user ## Deploy YOUR agent (uses shared MCP gateway) — ~4 min
 	bash $(SCRIPTS_DIR)/lab/engineer/05-deploy-agent.sh
-	bash $(SCRIPTS_DIR)/lab/engineer/06-verify.sh
-	@echo ""
-	@echo "==============================================="
-	@echo "  ✅  Your agent is deployed and verified."
-	@echo "  To try it in a browser: make lab-web"
-	@echo "==============================================="
 
-lab-verify: env-check-lab-user ## Re-run the smoke test against YOUR deployed agent
-	bash $(SCRIPTS_DIR)/lab/engineer/06-verify.sh
-
-lab-web: env-check-lab-user ## Open ADK Web UI pointed at YOUR agent
+lab-web: env-check-lab-user ## Open ADK Web UI pointed at YOUR agent (recommended)
 	@if [ ! -f .agent_engine_id ]; then \
 	  echo "No .agent_engine_id — run 'make lab-deploy' first."; exit 1; fi
 	@gw=$$(gcloud secrets versions access latest --secret=mcp-gateway-url --project=$(PROJECT_ID)); \
 	  engine_id=$$(cat .agent_engine_id); \
 	  echo "Local ADK Web UI, sessions shared with deployed agent: $$engine_id"; \
+	  echo "In the browser: click 'New session' and paste ONE of these prompts:"; \
+	  echo "  Please resolve enterprise support ticket INC-101 end-to-end."; \
+	  echo "  Please resolve enterprise support ticket INC-666 end-to-end."; \
 	  MCP_GATEWAY_URL="$$gw" adk web \
 	    --session_service_uri="agentengine://$$engine_id" \
 	    .
+
+lab-try-a: env-check ## Scenario A (INC-101) via curl-like path — pretty-prints tool sequence
+	bash $(SCRIPTS_DIR)/lab/engineer/try-scenario-a.sh
+
+lab-try-b: env-check ## Scenario B (INC-666 prompt injection) — expected to NOT block in this lab
+	bash $(SCRIPTS_DIR)/lab/engineer/try-scenario-b.sh
+
+lab-check: env-check-lab-user ## Headless smoke test with pass/fail assertions
+	bash $(SCRIPTS_DIR)/lab/engineer/06-verify.sh
 
 lab-console: env-check-lab-user ## Print Cloud Console URLs for YOUR agent + shared infra
 	@bash $(SCRIPTS_DIR)/console-urls.sh

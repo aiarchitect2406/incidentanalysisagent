@@ -194,8 +194,11 @@ make lab-admin-setup
 # Each engineer:
 export GOOGLE_CLOUD_PROJECT=<workshop project>
 export LAB_USER_ID=<yourname>
-make lab-deploy      # deploys + runs smoke test
-make lab-web         # opens ADK Web UI at 127.0.0.1:8000
+make lab-deploy      # deploy YOUR Agent Engine (no auto-smoke)
+make lab-web         # ADK Web UI (recommended)
+make lab-try-a       # Scenario A via terminal, pretty-printed
+make lab-try-b       # Scenario B (prompt injection, does NOT block)
+make lab-check       # headless smoke test with pass/fail
 make lab-teardown    # cleanup
 ```
 

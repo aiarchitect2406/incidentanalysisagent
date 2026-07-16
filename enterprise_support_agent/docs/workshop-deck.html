@@ -270,14 +270,17 @@ export LAB_USER_ID=&lt;your first name, lowercase&gt;</pre>
     <div class="body">
       <h4>Deploy YOUR agent (~4 min)</h4>
 <pre>make lab-deploy</pre>
-      <p>Chains <code>05-deploy-agent.sh</code> then <code>06-verify.sh</code>. Watch the terminal — you'll see 8 MCP tool calls fire against the shared gateway.</p>
+      <p>Runs <code>05-deploy-agent.sh</code> — reads the shared MCP URL from Secret Manager, creates only YOUR Agent Engine instance. Terminal prints a menu when it's done.</p>
     </div>
   </div>
   <div class="step-line">
     <div class="num">3</div>
     <div class="body">
-      <h4>Play with it in the browser</h4>
-<pre>make lab-web  # opens http://127.0.0.1:8000</pre>
+      <h4>Try the scenarios — pick any</h4>
+<pre>make lab-web       # ADK Web UI (recommended, richest view)
+make lab-try-a     # Scenario A via terminal, pretty-printed
+make lab-try-b     # Scenario B via terminal (won't block — see slide 9)
+make lab-check     # Headless pass/fail smoke test</pre>
     </div>
   </div>
   <div class="step-line">
@@ -332,7 +335,9 @@ export LAB_USER_ID=&lt;your first name, lowercase&gt;</pre>
   <h3>Engineer (<code>scripts/lab/engineer/</code>)</h3>
   <ul>
     <li><code>05-deploy-agent.sh</code> — reads shared MCP URL from Secret Manager, deploys your Agent Engine</li>
-    <li><code>06-verify.sh</code> — hits your agent with Scenario A + B, asserts on tool sequence</li>
+    <li><code>try-scenario-a.sh</code> — fires INC-101 at your agent, pretty-prints tool sequence</li>
+    <li><code>try-scenario-b.sh</code> — fires INC-666 (prompt injection); no block, teaching point</li>
+    <li><code>06-verify.sh</code> — headless smoke test, pass/fail assertions</li>
     <li><code>99-teardown.sh</code> — deletes only YOUR Agent Engine + staging bucket</li>
   </ul>
   <p class="dim">Python helpers under <code>scripts/lab/_lib/</code> (deploy_agent, publish_skill, ensure_model_armor). Called by the shell scripts above — you rarely need to open them directly.</p>

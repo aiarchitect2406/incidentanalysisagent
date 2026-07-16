@@ -81,4 +81,10 @@ RESOURCE_ID="$(basename "$RESOURCE_NAME")"
 ok "Agent deployed: ${RESOURCE_NAME}"
 console_url "https://console.cloud.google.com/gemini-enterprise/agent-runtime/locations/${AGENT_ENGINE_LOCATION}/reasoning-engines/${RESOURCE_ID}?project=${GOOGLE_CLOUD_PROJECT}"
 
-ok "Deploy complete. Next: bash scripts/lab/engineer/06-verify.sh"
+ok "Deploy complete."
+echo
+info "Try your agent — pick one:"
+info "  make lab-web      # ADK Web UI in a browser (recommended)"
+info "  make lab-try-a    # Scenario A (INC-101) via curl, pretty-printed"
+info "  make lab-try-b    # Scenario B (INC-666 injection) via curl"
+info "  make lab-check    # Headless smoke test (pass/fail assertions)"
