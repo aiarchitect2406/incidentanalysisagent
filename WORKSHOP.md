@@ -41,30 +41,40 @@ What that does:
 
 ## Step 2 — Try the scenarios
 
-Pick any of these. **The ADK Web UI is the richest experience** — you see the
-event stream, the multi-agent graph, and the trace Gantt chart. The terminal
-helpers are useful when you don't want to leave your terminal.
+Pick any of these. **The Google Cloud Console Playground is the highly recommended path** because it runs 100% in the cloud, uses secure Agent Identity, and requires absolutely zero local Python setup, local OS dependencies, or local credential hassle.
 
-### Option A — ADK Web UI (recommended)
+### Option A — Google Cloud Console Playground (Recommended & Zero Local Setup)
 
-```bash
-make lab-web
-```
+1. **Print your direct Cloud Console links:**
+   ```bash
+   make lab-console
+   ```
+2. **Access the Playground:**
+   * Under the **Scale** section of the terminal output, locate the **Agent Runtime (this agent)** URL and click it to open the Google Cloud Console.
+   * On the agent detail page, click the **Playground** (or **Test**) tab in the interface. Alternatively, click the **Sessions** link to open the session manager, click **+ New Session**, and choose your agent `enterprise_skills_support_agent-<yourname>`.
 
-Opens http://127.0.0.1:8000 in your browser, pointed at your deployed agent.
-Click **+ New session**, then paste one of the prompts below.
+3. **Start the Scenario:**
+   * In the chat input, paste the Scenario A prompt:
+     ```
+     Please resolve enterprise support ticket INC-101 end-to-end.
+     ```
+   * Press Enter and watch the live execution unfold!
 
-### Option B — Terminal, pretty-printed
+4. **What to Observe in the GCP Console:**
+   * 📊 **The Live Event Stream:** Watch how the model batches its actions. You will see `triage_agent` transfer immediately to `remediation_agent`. Under the hood, the agent loads the runbook dynamically and dispatches the backend tools (Salesforce, Postgres, Workday) in **parallel** in a single turn instead of one by one.
+   * ⏱️ **Cloud Trace (Performance Gantt Chart):** Click the **Traces** URL printed by `make lab-console`. You will see a beautiful Gantt chart showing the exact latency of every tool call, proving how parallel tool execution reduces the total resolution time to under 60 seconds.
+   * 🪵 **Cloud Logging (Private Gateway Traffic):** Click the **Cloud Logging (MCP tool calls)** URL. You'll see the incoming HTTPS requests hits on the private Cloud Run gateway, complete with secure validation of the agent's SPIFFE **Agent Identity** token.
+
+### Option B — Terminal, pretty-printed (Cloud Execution)
 
 ```bash
 make lab-try-a    # Scenario A (INC-101)
 make lab-try-b    # Scenario B (INC-666 prompt injection)
 ```
 
-Fires the prompt at your deployed agent and prints the tool sequence + final
-answer, no browser needed.
+Fires the prompt at your deployed agent in the cloud and pretty-prints the tool sequence + final answer, requiring zero browser access.
 
-### Option C — Headless smoke test with pass/fail
+### Option C — Headless smoke test with pass/fail (Cloud Execution)
 
 ```bash
 make lab-check

@@ -29,7 +29,7 @@ info "Publishing SKILL.md from ${REPO_ROOT}/enterprise_support_agent/skills/inci
 # The Python publisher already reads config.skill_registry_skill_name(), which
 # suffixes with LAB_USER_ID. For the SHARED workshop skill we want the unsuffixed
 # name, so we clear LAB_USER_ID for this one call.
-PYTHONPATH="$REPO_ROOT" LAB_USER_ID="" python3 "${REPO_ROOT}/scripts/lab/_lib/publish_skill.py"
+PYTHONPATH="$REPO_ROOT" LAB_USER_ID="" python3 "${REPO_ROOT}/scripts/lab/_lib/publish_skill_rest.py"
 
 console_url "https://console.cloud.google.com/gemini-enterprise/skill-registry?project=${GOOGLE_CLOUD_PROJECT}"
 ok "Skill published as '${SHARED_SKILL_ID}'."

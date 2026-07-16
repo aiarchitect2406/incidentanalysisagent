@@ -94,7 +94,7 @@ def deploy() -> str:
         enable_tracing=True,
         env_vars={
             "GOOGLE_CLOUD_PROJECT": project,
-            "GOOGLE_CLOUD_LOCATION": location,
+            "GOOGLE_CLOUD_LOCATION": "global",
             # agent.py hardcodes the model name itself; this only controls
             # which backend the google-genai client talks to. Set explicitly
             # rather than relying on Agent Engine to set it implicitly.

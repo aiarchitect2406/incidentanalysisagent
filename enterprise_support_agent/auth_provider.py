@@ -32,11 +32,23 @@ def id_token_headers_for(audience: str):
     request = google.auth.transport.requests.Request()
 
     def _headers() -> dict[str, str]:
-        token = google.oauth2.id_token.fetch_id_token(request, audience)
+        try:
+            token = google.oauth2.id_token.fetch_id_token(request, audience)
+            auth_header = f"Bearer {token}"
+        except Exception as e:
+            import warnings
+            warnings.warn(
+                f"Failed to fetch Google ID token for audience {audience}: {e}. "
+                "If running locally, this is expected unless you need to authenticate "
+                "with a remote GCP-hosted MCP gateway (run 'gcloud auth application-default login' to fix)."
+            )
+            auth_header = "Bearer local-dummy-token"
+
         return {
-            "Authorization": f"Bearer {token}",
+            "Authorization": auth_header,
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
         }
 
     return _headers
+

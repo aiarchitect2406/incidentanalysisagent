@@ -90,10 +90,16 @@ info "Granting secretAccessor to project-level aiplatform.user members (all engi
 # semantics instead: read binding on the secret to a documented workshop principal.
 # For simplicity here, we just make the secret readable to every authenticated Google user
 # in the project via projectViewer role — engineers already have that in a workshop project.
-gcloud secrets add-iam-policy-binding "$SHARED_MCP_URL_SECRET" \
-  --member="projectViewer:${GOOGLE_CLOUD_PROJECT}" \
-  --role="roles/secretmanager.secretAccessor" \
-  --project="$GOOGLE_CLOUD_PROJECT" >/dev/null
-ok "Secret is readable to project viewers (i.e. every workshop participant)."
+  ACTIVE_ACCOUNT="$(gcloud config get-value account 2>/dev/null || true)"
+  if [[ -n "$ACTIVE_ACCOUNT" ]]; then
+    info "Granting secretAccessor to active account: ${ACTIVE_ACCOUNT}..."
+    gcloud secrets add-iam-policy-binding "$SHARED_MCP_URL_SECRET" \
+      --member="user:${ACTIVE_ACCOUNT}" \
+      --role="roles/secretmanager.secretAccessor" \
+      --project="$GOOGLE_CLOUD_PROJECT" >/dev/null
+    ok "Secret is readable to active account."
+  else
+    warn "No active gcloud account found. Skipping secret binding."
+  fi
 
 ok "Registration + Model Armor + Secret complete. Next: bash scripts/lab/admin/04-publish-skill.sh"

@@ -69,6 +69,14 @@ class _PickleSafeMcpToolset(McpToolset):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        # Dynamically rebuild connection parameters during deserialization in-cloud.
+        # This resolves a critical circular block:
+        #   1. Local deployment requires MCP_GATEWAY_REQUIRES_AUTH=false to avoid crashing on local user credentials.
+        #   2. But if we pickle that "false" state, the deployed cloud agent has no Auth headers and gets a 403 Forbidden.
+        # Re-evaluating _build_connection_params here allows the deployed cloud container to dynamically mint
+        # the secure Google ID token using its GCP Metadata Server identity.
+        self._connection_params = _build_connection_params(config.mcp_gateway_url())
+
         from google.adk.tools.mcp_tool.mcp_session_manager import MCPSessionManager
         self._errlog = sys.stderr
         self._mcp_session_manager = MCPSessionManager(

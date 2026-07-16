@@ -81,9 +81,12 @@ lab-web: env-check-lab-user ## Open ADK Web UI pointed at YOUR agent (recommende
 	  echo "In the browser: click 'New session' and paste ONE of these prompts:"; \
 	  echo "  Please resolve enterprise support ticket INC-101 end-to-end."; \
 	  echo "  Please resolve enterprise support ticket INC-666 end-to-end."; \
+	  GOOGLE_GENAI_USE_VERTEXAI=TRUE \
+	  GOOGLE_CLOUD_LOCATION=global \
 	  MCP_GATEWAY_URL="$$gw" adk web \
 	    --session_service_uri="agentengine://$$engine_id" \
 	    .
+
 
 lab-try-a: env-check ## Scenario A (INC-101) via curl-like path — pretty-prints tool sequence
 	bash $(SCRIPTS_DIR)/lab/engineer/try-scenario-a.sh
