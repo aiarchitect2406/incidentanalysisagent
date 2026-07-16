@@ -3,7 +3,7 @@
 `google.oauth2.id_token.fetch_id_token` resolves via Application Default
 Credentials, so *which* identity signs the token depends entirely on how the
 caller is deployed — this code doesn't change:
-  * Deployed with Agent Identity (deploy_skills_agent.py sets
+  * Deployed with Agent Identity (scripts/lab/_lib/deploy_agent.py sets
     identity_type=AGENT_IDENTITY): ADC resolves to this agent's own SPIFFE
     identity, and the resulting token is cryptographically bound to its
     auto-rotated X.509 cert — not a shared service account.

@@ -9,7 +9,7 @@
 1. Connect Antigravity to your Google Cloud project and GEAP
 2. Bring the lab stack up (Antigravity drives Terraform + agent deploy)
 3. Get an architectural tour of the codebase
-4. Interact with the deployed agent via **ADK Web UI** — run the three scenarios yourself and watch them work
+4. Interact with the deployed agent via **ADK Web UI** — run the two scenarios yourself and watch them work
 5. Optionally: watch the same interaction happen in the **Cloud Console** with the Browser Agent
 6. Make your first change to the runbook — without redeploying
 7. Clean up
@@ -102,9 +102,8 @@ Give me an architectural tour of this codebase, targeted at an engineer about to
 
   1. The three sub-agents in enterprise_support_agent/agent.py: what each is responsible for, and how the least-privilege boundary is enforced (which MCP tools each is allowed to call).
   2. The runbook in enterprise_support_agent/skills/incident-escalator/SKILL.md: how the agent loads it at runtime and why it's separate from the code.
-  3. How Model Armor is wired — both the app-layer callbacks (enterprise_support_agent/callbacks.py) and the network-layer story via Agent Gateway (docs/agent-gateway-setup.md).
-  4. Where Sessions and Memory Bank plug in (agent.py's PreloadMemoryTool + generate_memories_callback).
-  5. Which files I'd touch to (a) add a new backend tool, (b) change a runbook step, (c) add a new sub-agent.
+  3. How Model Armor is wired at the network layer via Agent Gateway (docs/agent-gateway-setup.md).
+  4. Which files I'd touch to (a) add a new backend tool, (b) change a runbook step, (c) add a new sub-agent.
 
 Reference specific file paths as you go. Flag anything that would surprise a first-time reader.
 ```
@@ -115,14 +114,14 @@ Antigravity has full read access to the repo — its tour is grounded in what's 
 
 ## Step 4 — Interact with the deployed agent via ADK Web UI
 
-This is where **you** take over from Antigravity and drive the agent yourself. The **ADK Web UI** is a local web app that gives you a chat interface + an event-by-event trace pane + a graph view of the multi-agent topology. Critically, we point it at your **deployed Agent Runtime instance** so Sessions and Memory Bank are the real production ones — anything the agent remembers here, the deployed agent remembers too, and vice versa.
+This is where **you** take over from Antigravity and drive the agent yourself. The **ADK Web UI** is a local web app that gives you a chat interface + an event-by-event trace pane + a graph view of the multi-agent topology. Critically, we point it at your **deployed Agent Runtime instance** so Sessions are the real production ones — anything the agent remembers within a session here, the deployed agent remembers too.
 
 Ask Antigravity to start the server for you:
 ```
-Launch the ADK Web UI locally, pointed at the Agent Runtime instance we just deployed (LAB_USER_ID=$LAB_USER_ID) so Sessions and Memory Bank are shared with the deployed agent. Tell me the local URL to open in my browser, then leave the server running.
+Launch the ADK Web UI locally, pointed at the Agent Runtime instance we just deployed (LAB_USER_ID=$LAB_USER_ID) so Sessions are shared with the deployed agent. Tell me the local URL to open in my browser, then leave the server running.
 ```
 
-Antigravity figures out the right invocation (there's a `make web` target that assembles the ADK CLI flags — `adk web --session_service_uri=agentengine://... --memory_service_uri=agentengine://... .`). Open the URL it prints (default `http://127.0.0.1:8000`) in your browser.
+Antigravity figures out the right invocation (there's a `make web` target that assembles the ADK CLI flags — `adk web --session_service_uri=agentengine://... .`). Open the URL it prints (default `http://127.0.0.1:8000`) in your browser.
 
 **What you'll see in the ADK Web UI:**
 - Left pane: chat conversation
@@ -130,7 +129,7 @@ Antigravity figures out the right invocation (there's a `make web` target that a
 - **Graph tab**: the multi-agent topology drawn from the actual execution
 - **Trace tab**: the same events as a Gantt chart, showing which tool calls fired in parallel batches
 
-Now run through the three scenarios yourself. Each targets a different platform feature — you'll want to see all three work:
+Now run through the two scenarios yourself. Each targets a different platform feature:
 
 ### Scenario A — Autonomous Remediation
 
@@ -146,18 +145,9 @@ Narrated walkthrough: [`scenario-a.md`](./scenario-a.md).
 Click **+ New session**. Send:
 > `Resolve enterprise support ticket INC-666 end-to-end.`
 
-**What to watch:** INC-666 contains a hidden `Ignore all previous instructions...` payload. The agent itself does the right thing — it doesn't fall for the injection — but Model Armor blocks the tool call anyway because the conversation context is poisoned. You'll see a `SECURITY EXCEPTION` in the event stream.
+**What to watch:** INC-666 contains a hidden `Ignore all previous instructions...` payload. With Model Armor wired at the Agent Gateway, the payload is caught before any tool call and you see a `SECURITY EXCEPTION` in the event stream. Without Model Armor access in your project, this scenario will not block — the agent has no in-process guard, so the payload gets through.
 
 Narrated walkthrough: [`scenario-b.md`](./scenario-b.md).
-
-### Scenario C — Long-Term Memory Recall
-
-Click **+ New session** *twice* — you want to run this in two separate sessions with the same user. First session, send:
-> `Resolve enterprise support ticket INC-101 end-to-end.`
-
-Wait for it to finish. Then click **+ New session** again and send the *same message*. **What to watch:** the second session's response should reference the *first* session's fix — because between the two runs, an `after_agent_callback` persisted the resolution to Memory Bank, and `PreloadMemoryTool` recalled it silently at the start of the second run.
-
-Narrated walkthrough: [`scenario-c.md`](./scenario-c.md).
 
 ### Two things to know
 
@@ -228,7 +218,6 @@ The Browser Agent in Step 5 covers most walkthroughs, but there are a few things
 | Model Armor findings + Security Command Center summary for this agent | Agent Registry → your agent → **Security** tab |
 | The exact Model Armor template protecting this agent | Security → Model Armor → `enterprise-security-template-$LAB_USER_ID` |
 | A specific failed tool call with full request/response | Agent Registry → your agent → **Traces** tab → click the span |
-| Persisted long-term memory entries (populated after Scenario C runs) | Agent Registry → your agent → **Memories** tab |
 
 You can always ask the Browser Agent to open any of these for you if clicking around isn't your thing.
 
@@ -254,20 +243,19 @@ Known cases worth listing here (Antigravity's prompt above covers the rest):
 | `python3 -m venv .venv` fails with `ensurepip is not available` | Python missing the venv stdlib module. Install the exact package the error names (e.g. `apt install python3.12-venv`), or use `uv venv --seed` instead — `uv` needs no system packages. |
 | `terraform apply` fails on API enablement | Confirm billing is enabled and you have Service Usage Admin on the project. |
 | Scenario A or B doesn't behave as described in the ADK Web UI on first try | Cold start after a fresh deploy is sometimes flaky. Send the prompt again in a new session. If it still fails, use the deep-debug prompt below. |
-| Scenario C's second run doesn't reference the first run | Memory generation is async — wait ~30 seconds after the first session finishes before starting the second, then retry. |
 | Terraform says a resource already exists | You already provisioned under this `LAB_USER_ID`. Either reuse it (Terraform is idempotent) or pick a different `LAB_USER_ID`. |
 | ADK Web UI (Step 4) can't reach the gateway | The `.agent_engine_id` file at the repo root is stale or missing — re-run Step 2's deploy portion, or point `adk web` at the deployed resource explicitly. |
 | Shared project, don't want to touch teammates' shared setup | Pass `manage_shared_infra=false` when Antigravity provisions Terraform (see [`terraform/README.md`](../../terraform/README.md)). |
 
 ### Deep-debug prompt (when a scenario doesn't behave as expected)
 
-When a scenario misbehaves in the ADK Web UI in Step 4 — a tool call fails, the wrong sub-agent runs, Memory Bank doesn't recall — this is where Antigravity's MCP integrations really shine. Paste this and let it correlate everything:
+When a scenario misbehaves in the ADK Web UI in Step 4 — a tool call fails, the wrong sub-agent runs — this is where Antigravity's MCP integrations really shine. Paste this and let it correlate everything:
 
 ```
-Scenario [A/B/C] misbehaved in the ADK Web UI just now — describe what happened. Then, don't retry. Instead:
+Scenario [A/B] misbehaved in the ADK Web UI just now — describe what happened. Then, don't retry. Instead:
   1. Pull `jsonPayload.event="tool_invoked"` from Cloud Logging for the last 15 minutes via the Cloud Logging MCP.
   2. Call Gemini Cloud Assist's `investigate_issue` with a description of the scenario and the observed failure.
-  3. Cross-reference what you find against enterprise_support_agent/agent.py, callbacks.py, and mcp_server.py.
+  3. Cross-reference what you find against enterprise_support_agent/agent.py and mcp_server.py.
   4. Produce an Implementation Plan naming the root cause and the fix — don't touch files until I approve.
 ```
 
@@ -276,7 +264,7 @@ Scenario [A/B/C] misbehaved in the ADK Web UI just now — describe what happene
 ## Where to learn more
 
 - [`architecture-overview.html`](./architecture-overview.html) — the full picture, organized by GEAP pillar.
-- [`scenario-a.md`](./scenario-a.md), [`scenario-b.md`](./scenario-b.md), [`scenario-c.md`](./scenario-c.md) — narrated walkthroughs of each demo scenario (Mermaid renders inline on GitHub).
+- [`scenario-a.md`](./scenario-a.md), [`scenario-b.md`](./scenario-b.md) — narrated walkthroughs of each demo scenario (Mermaid renders inline on GitHub).
 - [`agent-gateway-setup.md`](./agent-gateway-setup.md) — provisioning the network-layer Model Armor path (optional; skipped by default).
 - [Gemini Enterprise Agent Platform overview](https://docs.cloud.google.com/gemini-enterprise-agent-platform/overview)
 - [Agent Development Kit docs](https://adk.dev/)

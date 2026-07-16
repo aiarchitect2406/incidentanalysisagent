@@ -2,8 +2,8 @@
 
 Uses the `google-cloud-modelarmor` SDK instead of `gcloud model-armor` —
 the SDK resolves Application Default Credentials the same way the rest of
-this repo's Python does (config.py, callbacks.py), which is more portable
-than the `gcloud model-armor` CLI surface. In at least one observed
+this repo's Python does, which is more portable than the `gcloud
+model-armor` CLI surface. In at least one observed
 environment, `gcloud model-armor templates create/describe` failed with a
 `PERMISSION_DENIED ... authenticated as None` error via ADC-override
 credential resolution, even though the identical identity had `roles/owner`
@@ -12,7 +12,7 @@ this repo. Root cause not fully isolated; this script sidesteps it entirely
 rather than depending on a specific gcloud CLI credential path.
 
 Usage:
-    python3 scripts/ensure_model_armor_template.py TEMPLATE_ID PROJECT_ID LOCATION
+    python3 scripts/lab/_lib/ensure_model_armor.py TEMPLATE_ID PROJECT_ID LOCATION
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def ensure_template(template_id: str, project_id: str, location: str) -> str:
 
     try:
         client.get_template(name=name)
-        print(f"[ensure_model_armor_template] Already exists: {name}")
+        print(f"[ensure_model_armor] Already exists: {name}")
         return name
     except NotFound:
         pass
@@ -74,17 +74,17 @@ def ensure_template(template_id: str, project_id: str, location: str) -> str:
     )
     try:
         result = client.create_template(request=request)
-        print(f"[ensure_model_armor_template] Created: {result.name}")
+        print(f"[ensure_model_armor] Created: {result.name}")
         return result.name
     except AlreadyExists:
         # Race with a concurrent lab run under the same LAB_USER_ID — fine.
-        print(f"[ensure_model_armor_template] Already exists (race): {name}")
+        print(f"[ensure_model_armor] Already exists (race): {name}")
         return name
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: ensure_model_armor_template.py TEMPLATE_ID PROJECT_ID LOCATION", file=sys.stderr)
+        print("Usage: ensure_model_armor.py TEMPLATE_ID PROJECT_ID LOCATION", file=sys.stderr)
         sys.exit(2)
     try:
         ensure_template(*sys.argv[1:4])

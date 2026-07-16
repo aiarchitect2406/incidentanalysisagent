@@ -15,7 +15,7 @@ flowchart LR
 
   %% ---------- COORDINATOR ----------
   subgraph COORD["Coordinator"]
-    TRIAGE["triage_agent<br/>(intent routing +<br/>PreloadMemoryTool +<br/>generate_memories_callback)"]
+    TRIAGE["triage_agent<br/>(intent routing)"]
   end
 
   %% ---------- SUB-AGENTS ----------
@@ -37,13 +37,11 @@ flowchart LR
     direction TB
     RUNTIME["Agent Runtime<br/>(managed AdkApp container)"]
     SESS["Agent Platform Sessions<br/>(short-term; Agent Runtime default,<br/>no extra wiring)"]
-    MEM["Memory Bank<br/>(long-term; Agent Runtime default —<br/>agent must call it: PreloadMemoryTool<br/>+ add_session_to_memory)"]
   end
 
-  %% ---------- MODEL + ARMOR (app layer) ----------
+  %% ---------- MODEL ----------
   subgraph MODEL["Model"]
     direction TB
-    ARMOR["Model Armor — APP layer<br/>before_model_callback<br/>before_tool_callback"]
     GEMINI["Gemini 3.5 Flash<br/>(GEAP managed)"]
   end
 
@@ -70,7 +68,7 @@ flowchart LR
     direction LR
     TRACE["Cloud Trace"]
     LOGS["Cloud Logging<br/>(structured events)"]
-    OBS["Agent Registry tabs:<br/>Observability • Traces •<br/>Security • Sessions • Memories"]
+    OBS["Agent Registry tabs:<br/>Observability • Traces •<br/>Security • Sessions"]
     TOPO["Topology view"]
     EVAL["Continuous Evaluation"]
   end
@@ -87,12 +85,10 @@ flowchart LR
   NOTIF --> RUNTIME
   TRIAGE --> RUNTIME
   RUNTIME --- SESS
-  RUNTIME --- MEM
 
-  REM --> ARMOR
-  NOTIF --> ARMOR
-  TRIAGE --> ARMOR
-  ARMOR --> GEMINI
+  REM --> GEMINI
+  NOTIF --> GEMINI
+  TRIAGE --> GEMINI
 
   REM --> MCPCLI
   NOTIF --> MCPCLI
@@ -111,7 +107,6 @@ flowchart LR
   GOVERN -. enforces .- TRIAGE
   OPT -. observes .- RUNTIME
   OPT -. observes .- MCPGW
-  OPT -. observes .- ARMOR
   OPT -. observes .- AGW
 
   classDef build fill:#e8f0fe,stroke:#1a73e8,color:#0b1d3a
@@ -121,7 +116,7 @@ flowchart LR
   classDef agent fill:#ffffff,stroke:#5f6368,color:#202124,stroke-width:2px
 
   class BUILD,SKILL,ADK build
-  class SCALE,RUNTIME,SESS,MEM scale
-  class GOVERN,AID,AGW,AREG,IAM,SECRETS,ARMOR govern
+  class SCALE,RUNTIME,SESS scale
+  class GOVERN,AID,AGW,AREG,IAM,SECRETS govern
   class OPT,TRACE,LOGS,OBS,TOPO,EVAL optimize
   class TRIAGE,REM,NOTIF agent

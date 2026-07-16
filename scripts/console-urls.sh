@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Print the exact Google Cloud Console URLs the L400 demo walks through.
-# Copy/paste each URL into a browser tab BEFORE the demo so tab-switching
-# is instant during the live walk-through.
+# Print Cloud Console URLs for the workshop.
+# Shared resources (MCP, Model Armor, Skill Registry) have workshop-wide
+# unsuffixed names. The one per-engineer resource (Agent Engine instance) is
+# read from .agent_engine_id if you've run `make lab-deploy`.
 set -euo pipefail
 
 PROJECT_ID="${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT}"
 LOCATION="${GOOGLE_CLOUD_LOCATION:-us-central1}"
-MCP_SERVICE_NAME="${MCP_SERVICE_NAME:-sre-mcp-gateway}"
-MODEL_ARMOR_TEMPLATE="${MODEL_ARMOR_TEMPLATE:-enterprise-security-template}"
+MCP_SERVICE_NAME="${MCP_SERVICE_NAME:-sre-mcp-gateway}"                    # shared
+MODEL_ARMOR_TEMPLATE="${MODEL_ARMOR_TEMPLATE:-enterprise-security-template}" # shared
 
 resource_id=""
 if [[ -f .agent_engine_id ]]; then
@@ -35,8 +36,6 @@ else
 fi
 url "Sessions" \
   "https://console.cloud.google.com/gemini-enterprise/sessions?project=${PROJECT_ID}"
-url "Memory Bank" \
-  "https://console.cloud.google.com/gemini-enterprise/memory-bank?project=${PROJECT_ID}"
 
 header "Govern"
 url "Agent Identity" \
@@ -55,10 +54,8 @@ if [[ -n "$resource_id" ]]; then
   url "Topology" \
     "https://console.cloud.google.com/gemini-enterprise/agent-registry/agents/${resource_id}/topology?project=${PROJECT_ID}"
 fi
-url "Cloud Logging (Model Armor)" \
-  "https://console.cloud.google.com/logs/query;query=$(q 'jsonPayload.event=~"model_armor_.*"')?project=${PROJECT_ID}"
-url "Cloud Logging (tool calls)" \
-  "https://console.cloud.google.com/logs/query;query=$(q 'jsonPayload.event="tool_invoked"')?project=${PROJECT_ID}"
+url "Cloud Logging (MCP tool calls)" \
+  "https://console.cloud.google.com/logs/query;query=$(q "resource.type=cloud_run_revision AND resource.labels.service_name=${MCP_SERVICE_NAME} AND textPayload:tool_invoked")?project=${PROJECT_ID}"
 
 echo
 echo "Tip: 'bash console_checklist.sh | awk \"/https/{print \\\$NF}\" | xargs -n1 open' opens all tabs (macOS)."

@@ -12,12 +12,6 @@ description: Multi-phase support incident triage with parallel investigation, P0
 When a support ticket arrives, execute the following five phases in order. Within each phase, call the listed tools in **parallel** — one model response containing multiple function calls.
 
 ## Phase 1 — Triage (sequential, 1 tool)
-Before calling any tool, check any memories preloaded into your context (from `triage_agent`'s
-PreloadMemoryTool) for a prior incident on the same connector ID or customer. If one exists, note
-the prior root cause and remediation (e.g. "heap already expanded to 4096MB last time") so you can
-verify and refer to it later instead of re-investigating from scratch — but still execute every
-phase below to confirm the current state.
-
 Call `zendesk_get_ticket` with the ticket ID parsed from the user request. From the response capture:
 - `customer_email`
 - Any connector ID in the subject/description (e.g. `CON-BQ-9812`)

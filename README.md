@@ -12,7 +12,7 @@ You'll deploy a coordinator + two sub-agents that resolve a real-shaped support 
 - [What you'll build](#what-youll-build)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [GEAP components — what's used and where](#geap-components--whats-used-and-where)
-- [Three scenarios](#three-scenarios)
+- [Two scenarios](#two-scenarios)
 - [Quick start](#quick-start)
 - [Multi-engineer workshops (the LAB_USER_ID story)](#multi-engineer-workshops-the-lab_user_id-story)
 - [Repository layout](#repository-layout)
@@ -29,15 +29,14 @@ Every enterprise support team has the same painful ticket: a customer's data pip
 The manual chain has three problems:
 1. It's slow when speed matters (every minute is SLA burn).
 2. The runbook lives in someone's head or on a wiki, so every engineer solves it slightly differently.
-3. Nothing remembers that the same customer had the same problem last month — the second time is as expensive as the first.
 
-This lab shows what that same chain looks like when the runbook lives in **GEAP's Skill Registry**, the agent runs on **Agent Runtime** with a per-agent **Agent Identity**, **Model Armor** screens every model turn and tool call, and **Memory Bank** remembers what worked last time. End result: sub-minute autonomous resolution with per-step audit trail, and — critically — **modify the runbook without redeploying the agent**.
+This lab shows what that same chain looks like when the runbook lives in **GEAP's Skill Registry**, the agent runs on **Agent Runtime** with a per-agent **Agent Identity**, and **Model Armor** screens every model turn and tool call. End result: sub-minute autonomous resolution with per-step audit trail, and — critically — **modify the runbook without redeploying the agent**.
 
 ## What you'll build
 
 A three-agent system, deployed to real GCP:
 
-- **`triage_agent`** (coordinator) — routes incoming requests, holds `PreloadMemoryTool` for cross-session recall.
+- **`triage_agent`** (coordinator) — routes incoming requests to the right specialist sub-agent.
 - **`remediation_agent`** — loads the incident-escalator runbook from Skill Registry and executes it. Owns the read + remediation MCP tools.
 - **`notification_agent`** — the *only* sub-agent with permission to write back to Zendesk (least privilege at the sub-agent boundary).
 
@@ -61,26 +60,25 @@ flowchart LR
   DEV["Engineer<br/>Antigravity IDE / ADK Web UI"]:::user
 
   subgraph AGENTS["Multi-agent system (deployed to Agent Runtime)"]
-    T["triage_agent<br/>+ PreloadMemoryTool"]:::agent
+    T["triage_agent<br/>coordinator"]:::agent
     R["remediation_agent<br/>owns read + remediation tools"]:::agent
     N["notification_agent<br/>sole owner of zendesk_update_ticket"]:::agent
   end
 
   SKILL["Skill Registry<br/>incident-escalator runbook"]:::geap
-  MEM["Sessions + Memory Bank<br/>(Agent Runtime managed)"]:::geap
+  SESS["Sessions<br/>(Agent Runtime managed)"]:::geap
   ID["Agent Identity<br/>SPIFFE, per-agent"]:::geap
   AR["Agent Registry<br/>MCP servers + agents"]:::geap
 
-  MA["Model Armor<br/>app-layer + network-layer<br/>(via Agent Gateway)"]:::sec
+  MA["Model Armor<br/>network-layer<br/>(via Agent Gateway)"]:::sec
   MCP["MCP Gateway<br/>Cloud Run, IAM-gated"]:::geap
   BACKENDS["Mocked enterprise systems<br/>Zendesk · Salesforce · Postgres · Workday · Jira"]:::ext
 
   DEV --> T
   T --> R
   R --> N
-  T --- MEM
+  T --- SESS
   R -- "load_skill" --> SKILL
-  T -.-> MA
   R -.-> MA
   N -.-> MA
   R --> MCP
@@ -96,28 +94,25 @@ For a fuller version with all four GEAP pillars called out, see [`architecture-o
 
 | GEAP pillar | Component | Used for | Where in this repo |
 |---|---|---|---|
-| **Build** | ADK (`google-adk >= 1.34.3`) | Multi-agent orchestration, MCP toolset, memory tools | [`enterprise_support_agent/agent.py`](./enterprise_support_agent/agent.py) |
-| **Build** | Skill Registry | Runbook lives here, agent loads via `load_skill` at runtime — change it without redeploying | [`scripts/publish_skills_to_registry.py`](./scripts/publish_skills_to_registry.py) publishes; [`SKILL.md`](./enterprise_support_agent/skills/incident-escalator/SKILL.md) is the source |
-| **Scale** | Agent Runtime | Deployed agent, auto-registered in Agent Registry | [`scripts/deploy_skills_agent.py`](./scripts/deploy_skills_agent.py) |
+| **Build** | ADK (`google-adk >= 1.34.3`) | Multi-agent orchestration, MCP toolset | [`enterprise_support_agent/agent.py`](./enterprise_support_agent/agent.py) |
+| **Build** | Skill Registry | Runbook lives here, agent loads via `load_skill` at runtime — change it without redeploying | [`scripts/lab/_lib/publish_skill.py`](./scripts/lab/_lib/publish_skill.py) publishes; [`SKILL.md`](./enterprise_support_agent/skills/incident-escalator/SKILL.md) is the source |
+| **Scale** | Agent Runtime | Deployed agent, auto-registered in Agent Registry | [`scripts/lab/_lib/deploy_agent.py`](./scripts/lab/_lib/deploy_agent.py) |
 | **Scale** | Sessions (short-term) | Per-conversation event history — Agent Runtime default | Automatic once deployed |
-| **Scale** | Memory Bank (long-term) | Cross-session recall via `PreloadMemoryTool` + `after_agent_callback` | [`enterprise_support_agent/agent.py`](./enterprise_support_agent/agent.py) — `generate_memories_callback` |
-| **Govern** | Agent Identity (SPIFFE) | Per-agent cryptographic identity instead of shared service accounts | [`scripts/deploy_skills_agent.py`](./scripts/deploy_skills_agent.py) sets `identity_type=AGENT_IDENTITY` |
-| **Govern** | Model Armor (app layer) | `before_model_callback` + `before_tool_callback` — a jailbroken agent can't route around it | [`enterprise_support_agent/callbacks.py`](./enterprise_support_agent/callbacks.py) |
-| **Govern** | Model Armor (network layer) | Same template applied at Agent Gateway egress — defense in depth | [`docs/agent-gateway-setup.md`](./enterprise_support_agent/docs/agent-gateway-setup.md) — optional provisioning runbook |
-| **Govern** | Agent Registry | MCP gateway registered as a discoverable MCP server | [`scripts/register_mcp_in_agent_registry.sh`](./scripts/register_mcp_in_agent_registry.sh) + [`enterprise_support_agent/toolspec.json`](./enterprise_support_agent/toolspec.json) |
+| **Govern** | Agent Identity (SPIFFE) | Per-agent cryptographic identity instead of shared service accounts | [`scripts/lab/_lib/deploy_agent.py`](./scripts/lab/_lib/deploy_agent.py) sets `identity_type=AGENT_IDENTITY` |
+| **Govern** | Model Armor | Template provisioned in the workshop (not wired into request path in this lab — would require Agent Gateway) | [`scripts/lab/_lib/ensure_model_armor.py`](./scripts/lab/_lib/ensure_model_armor.py) |
+| **Govern** | Agent Registry | MCP gateway registered as a discoverable MCP server | [`scripts/lab/admin/03-register-mcp.sh`](./scripts/lab/admin/03-register-mcp.sh) + [`enterprise_support_agent/toolspec.json`](./enterprise_support_agent/toolspec.json) |
 | **Optimize** | Cloud Trace + Cloud Logging | Every tool call structured-logged; ADK emits OTel spans | Automatic via `enable_tracing=True` in AdkApp |
 
-## Three scenarios
+## Two scenarios
 
-The lab ships three end-to-end scenarios, each targeting a different platform capability. **You run them yourself** in the ADK Web UI in Step 4 of the [User Guide](./enterprise_support_agent/docs/USER_GUIDE.md).
+The lab ships two end-to-end scenarios. **You run them yourself** in the ADK Web UI in Step 4 of the [User Guide](./enterprise_support_agent/docs/USER_GUIDE.md).
 
 | Scenario | Ticket | What it demonstrates | Narrated walkthrough |
 |---|---|---|---|
 | **A — Autonomous Remediation** | `INC-101` (real customer, OOM crash) | Multi-agent handoff, parallel tool batches (3-then-2), Skill Registry-loaded runbook, least-privilege sub-agent boundary | [`scenario-a.md`](./enterprise_support_agent/docs/scenario-a.md) |
-| **B — Prompt Injection Containment** | `INC-666` (poisoned description with `Ignore all previous instructions...`) | Model Armor blocks tool calls at two independent layers even though the agent itself doesn't fall for the injection | [`scenario-b.md`](./enterprise_support_agent/docs/scenario-b.md) |
-| **C — Long-Term Memory Recall** | `INC-101` replayed in a brand-new session | Memory Bank persists the first run's resolution and silently injects it into the second run's system instruction via `PreloadMemoryTool` | [`scenario-c.md`](./enterprise_support_agent/docs/scenario-c.md) |
+| **B — Prompt Injection Containment** | `INC-666` (poisoned description with `Ignore all previous instructions...`) | Model Armor at the Agent Gateway blocks tool calls that carry the poisoned context. Without Model Armor access, the agent has no in-process guard and the payload gets through — this scenario is deploy-only. | [`scenario-b.md`](./enterprise_support_agent/docs/scenario-b.md) |
 
-All three render inline on GitHub (Mermaid + tables) — no cloning required to preview.
+Both render inline on GitHub (Mermaid + tables) — no cloning required to preview.
 
 ## Quick start
 
@@ -174,11 +169,9 @@ See [`terraform/README.md`](./terraform/README.md) for the native-vs-scripted re
 │
 ├── enterprise_support_agent/           # The Python package that IS the agent
 │   ├── agent.py                        # triage/remediation/notification agents wired together
-│   ├── callbacks.py                    # Model Armor before_model + before_tool callbacks
 │   ├── auth_provider.py                # ID-token minting for IAM-gated Cloud Run invocation
 │   ├── config.py                       # Central config (env var + Secret Manager fallback)
 │   ├── mcp_server.py                   # FastMCP server for the Cloud Run gateway
-│   ├── logging_setup.py                # Structured Cloud Logging setup
 │   ├── requirements.txt                # Container-scoped deps (baked into MCP gateway image)
 │   ├── toolspec.json                   # Tool annotations for Agent Registry (readOnlyHint, destructiveHint)
 │   ├── skills/incident-escalator/
@@ -186,24 +179,32 @@ See [`terraform/README.md`](./terraform/README.md) for the native-vs-scripted re
 │   ├── evals/
 │   │   └── incident_escalation.evalset.json
 │   └── docs/
-│       ├── USER_GUIDE.md               # Full lab walkthrough (Antigravity-driven, 7 steps)
-│       ├── scenario-{a,b,c}.md         # Narrated per-scenario walkthroughs (Mermaid renders on GitHub)
-│       ├── architecture-overview.{mmd,html}
-│       └── agent-gateway-setup.md      # Optional: provisioning the network-layer Model Armor path
+│       ├── USER_GUIDE.md               # Full lab walkthrough (Antigravity-driven)
+│       ├── workshop-deck.html          # Self-contained presenter deck for the workshop
+│       ├── scenario-{a,b}.md           # Narrated per-scenario walkthroughs
+│       └── architecture-overview.{mmd,html}
 │
-├── scripts/                            # Called by Makefile / Terraform, not run directly
-│   ├── deploy_skills_agent.py          # Deploys agent to Agent Runtime with Agent Identity
-│   ├── publish_skills_to_registry.py   # Publishes SKILL.md to GEAP Skill Registry
-│   ├── register_mcp_in_agent_registry.sh # Registers MCP gateway in Agent Registry
-│   └── console_checklist.sh            # Prints the GCP Console URLs to watch during the demo
+├── scripts/                            # Called by Makefile — most engineers just use the `make lab-*` targets
+│   ├── console-urls.sh                 # `make lab-console` — Cloud Console URLs
+│   ├── lab/
+│   │   ├── admin/                      # INSTRUCTOR runs once (make lab-admin-setup):
+│   │   │   ├── 01-preflight.sh         #   Enable APIs
+│   │   │   ├── 02-mcp-gateway.sh       #   Build container + deploy Cloud Run
+│   │   │   ├── 03-register-mcp.sh     #   Agent Registry + Model Armor + Secret Manager
+│   │   │   ├── 04-publish-skill.sh    #   Publish SKILL.md
+│   │   │   └── 99-teardown.sh
+│   │   ├── engineer/                   # EACH ENGINEER runs (make lab-deploy):
+│   │   │   ├── 05-deploy-agent.sh      #   Deploy YOUR Agent Engine
+│   │   │   ├── 06-verify.sh            #   Smoke test A + B
+│   │   │   └── 99-teardown.sh          #   Delete only YOUR agent
+│   │   └── _lib/                       # Python helpers the shell scripts call
+│   │       ├── _common.sh, deploy_agent.py, publish_skill.py, ensure_model_armor.py
+│   └── local/
+│       └── run.sh                      # `make local` — MCP + adk api_server on localhost
 │
-├── tests/
-│   ├── smoke_test.py                   # End-to-end Scenarios A/B/C against the deployed agent
-│   └── eval_run.py                     # ADK evaluation harness → Agent Registry Evaluation tab
-│
-└── terraform/                          # Infra as code — see terraform/README.md
-    ├── apis.tf, iam.tf, cloud_run.tf, secrets.tf, storage.tf, ...
-    └── scripted_steps.tf               # null_resources that call the scripts/ above for the Preview APIs
+└── tests/
+    ├── smoke_test.py                   # End-to-end Scenarios A/B against the deployed agent
+    └── eval_run.py                     # ADK evaluation harness
 ```
 
 ## What it costs to run and how to clean up
@@ -224,9 +225,9 @@ If several engineers are sharing the project, this only removes your own `LAB_US
 | Doc | For |
 |---|---|
 | **[`USER_GUIDE.md`](./enterprise_support_agent/docs/USER_GUIDE.md)** | **Engineers running the lab.** Full seven-step walkthrough driven from Antigravity IDE. Start here. |
-| [`scenario-a.md`](./enterprise_support_agent/docs/scenario-a.md), [`scenario-b.md`](./enterprise_support_agent/docs/scenario-b.md), [`scenario-c.md`](./enterprise_support_agent/docs/scenario-c.md) | Narrated per-scenario walkthroughs — what each demonstrates, what to watch for, where to look in the Console. |
+| [`scenario-a.md`](./enterprise_support_agent/docs/scenario-a.md), [`scenario-b.md`](./enterprise_support_agent/docs/scenario-b.md) | Narrated per-scenario walkthroughs — what each demonstrates, what to watch for, where to look in the Console. |
 | [`architecture-overview.html`](./enterprise_support_agent/docs/architecture-overview.html) | Full architecture diagram, organized by GEAP pillar. |
-| [`agent-gateway-setup.md`](./enterprise_support_agent/docs/agent-gateway-setup.md) | Provisioning the network-layer Model Armor path via Agent Gateway (optional; the app-layer path in `callbacks.py` works standalone). |
+| [`agent-gateway-setup.md`](./enterprise_support_agent/docs/agent-gateway-setup.md) | Provisioning the network-layer Model Armor path via Agent Gateway. |
 | [`terraform/README.md`](./terraform/README.md) | Terraform module docs — native-vs-scripted split, `lab_user_id` multi-tenancy story, state isolation options. |
 
 ## Contributing, license, disclaimer

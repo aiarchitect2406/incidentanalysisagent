@@ -1,12 +1,8 @@
 """End-to-end smoke test for the deployed Enterprise Support Agent.
 
-Runs all three demo scenarios against the live Agent Runtime resource and
+Runs the two demo scenarios against the live Agent Runtime resource and
 asserts on what the audience will actually see: tool span order in Cloud
-Trace (Scenario A), Model Armor blocks in Cloud Logging (Scenario B), and —
-unlike the other two, which assert on discrete tool calls — Scenario C
-asserts on the *textual effect* of a successful Memory Bank round-trip,
-since PreloadMemoryTool never appears as its own trace event (see
-run_scenario_c's docstring).
+Trace (Scenario A) and Model Armor blocks in Cloud Logging (Scenario B).
 
 Exit code:
   0 — every assertion passed (demo is GO)
@@ -227,55 +223,6 @@ def run_scenario_b(remote) -> ScenarioReport:
     return report
 
 
-def run_scenario_c(remote) -> ScenarioReport:
-    """Long-term memory recall: same prompt, same (fresh, random) user_id,
-    two different sessions.
-
-    PreloadMemoryTool does NOT show up as a discrete tool/function-call event
-    — it's a silent process_llm_request hook that injects a
-    <PAST_CONVERSATIONS> block into the system instruction before every model
-    turn (see agent.py / google.adk.tools.preload_memory_tool). So unlike
-    Scenarios A/B, we can't assert on a tool call here — we assert on its
-    *effect*: the second run's answer should reference the prior incident,
-    which is only possible if Memory Bank actually persisted and recalled it.
-
-    Uses a freshly-randomized user_id so the test is self-contained — the
-    first call is guaranteed to start with no memory for that user, however
-    many times this smoke test has run before against the same agent.
-    """
-    report = ScenarioReport(title="Scenario C — Long-Term Memory Recall (INC-101 replayed)")
-    memory_user_id = f"smoke-test-memory-{uuid.uuid4().hex[:8]}"
-    wait_seconds = int(os.environ.get("SMOKE_TEST_MEMORY_WAIT_SECONDS", "15"))
-
-    first_text, _ = _stream_and_collect(
-        remote, SCENARIO_A_PROMPT, f"smoke-c1-{uuid.uuid4().hex[:8]}", user_id=memory_user_id
-    )
-    report.checks.append(
-        CheckResult(
-            "First run resolves the ticket (seeds memory for the second run)",
-            passed="resolved" in first_text.lower(),
-            detail=f"final_text head: {first_text[:200]!r}",
-        )
-    )
-
-    # Memory generation runs after the session ends; give Memory Bank a
-    # moment before the next session's PreloadMemoryTool searches it.
-    time.sleep(wait_seconds)
-
-    second_text, _ = _stream_and_collect(
-        remote, SCENARIO_A_PROMPT, f"smoke-c2-{uuid.uuid4().hex[:8]}", user_id=memory_user_id
-    )
-    recall_hints = ("previously", "prior incident", "already expanded", "last time", "recall", "before")
-    report.checks.append(
-        CheckResult(
-            "Second run's response references the prior remediation",
-            passed=any(hint in second_text.lower() for hint in recall_hints),
-            detail=f"final_text head: {second_text[:200]!r}",
-        )
-    )
-    return report
-
-
 def _emit(report: ScenarioReport) -> None:
     icon = f"{GREEN}✅{RESET}" if report.ok else f"{RED}❌{RESET}"
     print(f"{icon} {BOLD}{report.title}{RESET}")
@@ -296,7 +243,7 @@ def main() -> int:
     print(f"{BOLD}Target Agent Runtime:{RESET} {resource_name}\n")
     remote = agent_engines.get(resource_name)
 
-    reports = [run_scenario_a(remote), run_scenario_b(remote), run_scenario_c(remote)]
+    reports = [run_scenario_a(remote), run_scenario_b(remote)]
     print()
     for r in reports:
         _emit(r)

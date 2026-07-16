@@ -90,11 +90,11 @@
     </div>
     <div class="pillar scale">
       <h3>Scale</h3>
-      <p>Agent Runtime · Sessions (short-term) · Memory Bank (long-term)</p>
+      <p>Agent Runtime · Sessions (short-term)</p>
     </div>
     <div class="pillar govern">
       <h3>Govern</h3>
-      <p>Agent Identity · Agent Gateway · Agent Registry · Model Armor (app + network layer)</p>
+      <p>Agent Identity · Agent Gateway · Agent Registry · Model Armor (network layer)</p>
     </div>
     <div class="pillar optimize">
       <h3>Optimize</h3>
@@ -119,7 +119,7 @@ flowchart LR
   end
 
   subgraph COORD["Coordinator"]
-    TRIAGE["triage_agent<br/>(PreloadMemoryTool +<br/>generate_memories_callback)"]
+    TRIAGE["triage_agent<br/>(intent routing)"]
   end
 
   subgraph SUBS["Sub-agents (least privilege)"]
@@ -136,12 +136,10 @@ flowchart LR
     direction TB
     RUNTIME["Agent Runtime<br/>(AdkApp)"]
     SESS["Sessions — short-term<br/>(Agent Runtime default)"]
-    MEM["Memory Bank — long-term<br/>(Agent Runtime default;<br/>agent must call it — see triage_agent)"]
   end
 
   subgraph MODEL["Model"]
     direction TB
-    ARMORAPP["Model Armor — app layer<br/>before_model_callback<br/>before_tool_callback"]
     GEMINI["Gemini 3.5 Flash<br/>(global endpoint)"]
   end
 
@@ -172,12 +170,10 @@ flowchart LR
   REM --"load_skill"--> SKILL
   TRIAGE --- RUNTIME
   RUNTIME --- SESS
-  RUNTIME --- MEM
 
-  TRIAGE --> ARMORAPP
-  REM --> ARMORAPP
-  NOTIF --> ARMORAPP
-  ARMORAPP --> GEMINI
+  TRIAGE --> GEMINI
+  REM --> GEMINI
+  NOTIF --> GEMINI
 
   REM --"MCP tools"--> AGW
   NOTIF --"zendesk_update_ticket"--> AGW
@@ -188,7 +184,6 @@ flowchart LR
   AGW -.policy lookup.-> AREG
 
   RUNTIME  -. OTel .- OPT
-  ARMORAPP -. audit .- OPT
   AGW      -. audit + metrics .- OPT
   MCPGW    -. metrics .- OPT
 
@@ -196,8 +191,8 @@ flowchart LR
   class TRIAGE coord
   class REM,NOTIF sub
   class SKILL build
-  class RUNTIME,SESS,MEM scale
-  class ARMORAPP,GEMINI,AID,AGW,AREG govern
+  class RUNTIME,SESS scale
+  class GEMINI,AID,AGW,AREG govern
   class MCPGW tool
   class BACKENDS tool
   class TRACE,LOGS,OBS optimize

@@ -2,11 +2,8 @@
 
 This script:
   * Imports the production agent definition (coordinator + sub-agents).
-  * Wraps it in AdkApp. Sessions and Memory Bank are wired automatically by
-    Agent Runtime once deployed — there is no env var or extra plumbing for
-    this (see agent.py's PreloadMemoryTool / generate_memories_callback for
-    how the agent actually *uses* them, which is the part that does need
-    code).
+  * Wraps it in AdkApp. Sessions are wired automatically by Agent Runtime
+    once deployed — there is no env var or extra plumbing for this.
   * Deploys with identity_type=AGENT_IDENTITY so the agent gets its own
     SPIFFE identity + auto-rotated cert instead of the shared Reasoning
     Engine service agent — see auth_provider.py for what this changes.
@@ -30,13 +27,13 @@ from vertexai.preview.reasoning_engines import AdkApp
 
 from enterprise_support_agent import config
 from enterprise_support_agent.agent import root_agent
-from enterprise_support_agent.logging_setup import init_logging
 
-logger = init_logging()
-logging.getLogger().setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("deploy_agent")
 
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+# scripts/lab/_lib/deploy_agent.py -> repo root is four parents up.
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _PACKAGE_DIR = _REPO_ROOT / "enterprise_support_agent"
 # extra_packages must be relative to the CURRENT WORKING DIRECTORY, not
 # absolute: the SDK tars each path with `tarfile.add(file)` and no `arcname`
@@ -98,19 +95,22 @@ def deploy() -> str:
         env_vars={
             "GOOGLE_CLOUD_PROJECT": project,
             "GOOGLE_CLOUD_LOCATION": location,
-            "AGENT_MODEL": config.model_name(),
+            # agent.py hardcodes the model name itself; this only controls
+            # which backend the google-genai client talks to. Set explicitly
+            # rather than relying on Agent Engine to set it implicitly.
+            "GOOGLE_GENAI_USE_VERTEXAI": "TRUE",
             "MODEL_ARMOR_TEMPLATE": config.model_armor_template(),
             "MCP_GATEWAY_URL": os.environ.get("MCP_GATEWAY_URL", ""),
             # Hardcoded true, not inherited from the deploy script's own env:
-            # the Terraform-provisioned Cloud Run gateway never sets
-            # --allow-unauthenticated (see terraform/cloud_run.tf), so it's
-            # ALWAYS private — confirmed live with a bare curl returning 403.
-            # Without this, the deployed container connects with no ID
-            # token, every MCP call gets rejected, and the agent silently
-            # has zero MCP tools (it then falls back to looping on
-            # SkillToolset's generic tools instead).
+            # the shared MCP Cloud Run gateway is deployed with
+            # --no-allow-unauthenticated (see scripts/lab/shared/02-mcp-gateway.sh),
+            # so it's always private. Without this, the deployed container
+            # connects with no ID token, every MCP call gets rejected, and
+            # the agent silently has zero MCP tools.
             "MCP_GATEWAY_REQUIRES_AUTH": "true",
-            "AGENT_GATEWAY_URL": os.environ.get("AGENT_GATEWAY_URL", ""),
+            "SKILL_REGISTRY_INCIDENT_SKILL": os.environ.get(
+                "SKILL_REGISTRY_INCIDENT_SKILL", config.skill_registry_skill_name()
+            ),
             "LAB_USER_ID": lab_user_id,
         },
     )
@@ -158,11 +158,8 @@ def deploy() -> str:
                 # below that silently falls back to the on-disk SKILL.md with
                 # no error, which is the bug this range fixes.
                 "google-adk>=1.34.3,<2.0.0",
-                "google-cloud-modelarmor",
-                "google-cloud-logging",
                 "google-cloud-secret-manager",
                 "google-auth",
-                "opentelemetry-api",
                 "requests",
             ],
         },

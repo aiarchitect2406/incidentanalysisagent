@@ -1,8 +1,3 @@
 mcp
 uvicorn
 starlette
-google-cloud-modelarmor
-google-cloud-logging
-google-cloud-secret-manager
-google-auth
-opentelemetry-api

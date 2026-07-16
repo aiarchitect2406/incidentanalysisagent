@@ -5,29 +5,21 @@ to the Gemini Enterprise Agent Platform orchestrator. Prompt-injection
 defense is NOT enforced here — it is enforced upstream by Model Armor
 callbacks registered on the agent. The gateway's only job is to broker
 authenticated tool invocations to the (mocked) backend systems.
-
-Deployed with `enterprise_support_agent/` itself as the Cloud Build/Cloud Run
-source root (see Makefile's deploy-gateway target and terraform/cloud_run.tf),
-so inside the container this file's siblings (logging_setup.py, etc.) sit
-flat at the workspace root — NOT nested under an `enterprise_support_agent`
-package. Import them by bare module name, not package-qualified, or the
-container crashes on startup with ModuleNotFoundError.
 """
 import json
+import logging
 import os
 
 from mcp.server.fastmcp import FastMCP
 
-from logging_setup import event, init_logging
-
-logger = init_logging()
+logger = logging.getLogger("sre_data_gateway")
 mcp = FastMCP("SreDataGateway")
 
 
 @mcp.tool()
 def zendesk_list_open_tickets() -> list[str]:
     """Returns a list of currently active open ticket IDs from the support queue."""
-    event(logger, "tool_invoked", tool="zendesk_list_open_tickets")
+    logger.info("tool_invoked tool=zendesk_list_open_tickets")
     return ["INC-101", "INC-666"]
 
 
@@ -63,7 +55,7 @@ def zendesk_get_ticket(ticket_id: str) -> str:
             "status": "Open",
         },
     }
-    event(logger, "tool_invoked", tool="zendesk_get_ticket", ticket_id=ticket_id)
+    logger.info("tool_invoked tool=zendesk_get_ticket ticket_id=%s", ticket_id)
     return json.dumps(tickets.get(ticket_id, {"error": "Ticket not found"}))
 
 
@@ -83,7 +75,7 @@ def salesforce_get_customer_context(customer_email: str) -> str:
             "support_sla": "4-hour response time",
         }
     }
-    event(logger, "tool_invoked", tool="salesforce_get_customer_context", customer_email=customer_email)
+    logger.info("tool_invoked tool=salesforce_get_customer_context customer_email=%s", customer_email)
     return json.dumps(customers.get(customer_email, {"tier": "Free Trial", "mrr": 0.00}))
 
 
@@ -108,14 +100,14 @@ def postgres_get_sync_telemetry(connector_id: str) -> str:
             ),
         }
     }
-    event(logger, "tool_invoked", tool="postgres_get_sync_telemetry", connector_id=connector_id)
+    logger.info("tool_invoked tool=postgres_get_sync_telemetry connector_id=%s", connector_id)
     return json.dumps(logs.get(connector_id, {"error": f"No logs found for {connector_id}"}))
 
 
 @mcp.tool()
 def workday_get_oncall_engineer() -> str:
     """Queries Workday for the current engineering on-call personnel."""
-    event(logger, "tool_invoked", tool="workday_get_oncall_engineer")
+    logger.info("tool_invoked tool=workday_get_oncall_engineer")
     return json.dumps({
         "oncall_name": "David Chen",
         "team": "Core Data-Plane Infrastructure",
@@ -132,7 +124,7 @@ def jira_create_bug_ticket(title: str, description: str, assignee: str) -> str:
         description: Detailed bug description with log stacks.
         assignee: Engineer to assign this bug ticket to.
     """
-    event(logger, "tool_invoked", tool="jira_create_bug_ticket", title=title, assignee=assignee)
+    logger.info("tool_invoked tool=jira_create_bug_ticket title=%r assignee=%s", title, assignee)
     return json.dumps({
         "jira_key": "FIV-4891",
         "status": "Created",
@@ -150,12 +142,9 @@ def postgres_update_connector_memory(connector_id: str, new_memory_mb: int) -> s
         connector_id: Connector ID (e.g. CON-BQ-9812).
         new_memory_mb: New JVM heap allocation in megabytes (e.g. 4096).
     """
-    event(
-        logger,
-        "tool_invoked",
-        tool="postgres_update_connector_memory",
-        connector_id=connector_id,
-        new_memory_mb=new_memory_mb,
+    logger.info(
+        "tool_invoked tool=postgres_update_connector_memory connector_id=%s new_memory_mb=%s",
+        connector_id, new_memory_mb,
     )
     return json.dumps({
         "connector_id": connector_id,
@@ -173,7 +162,7 @@ def enterprise_trigger_connector_sync(connector_id: str) -> str:
     Args:
         connector_id: Connector ID to trigger (e.g. CON-BQ-9812).
     """
-    event(logger, "tool_invoked", tool="enterprise_trigger_connector_sync", connector_id=connector_id)
+    logger.info("tool_invoked tool=enterprise_trigger_connector_sync connector_id=%s", connector_id)
     return json.dumps({
         "connector_id": connector_id,
         "status": "SUCCESS",
@@ -192,12 +181,8 @@ def zendesk_update_ticket(ticket_id: str, comment: str, status: str) -> str:
         comment: Customer-facing resolution comment.
         status: New status (e.g. Resolved, Solved, Open).
     """
-    event(
-        logger,
-        "tool_invoked",
-        tool="zendesk_update_ticket",
-        ticket_id=ticket_id,
-        status=status,
+    logger.info(
+        "tool_invoked tool=zendesk_update_ticket ticket_id=%s status=%s", ticket_id, status,
     )
     return json.dumps({
         "ticket_id": ticket_id,
@@ -208,16 +193,14 @@ def zendesk_update_ticket(ticket_id: str, comment: str, status: str) -> str:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     mcp.settings.host = "0.0.0.0"
     mcp.settings.port = int(os.environ.get("PORT", 8080))
     mcp.settings.transport_security.enable_dns_rebinding_protection = False
     mcp.settings.transport_security.allowed_hosts = ["*"]
     mcp.settings.transport_security.allowed_origins = ["*"]
-    event(
-        logger,
-        "mcp_gateway_starting",
-        host=mcp.settings.host,
-        port=mcp.settings.port,
-        transport="streamable-http",
+    logger.info(
+        "mcp_gateway_starting host=%s port=%s transport=streamable-http",
+        mcp.settings.host, mcp.settings.port,
     )
     mcp.run(transport="streamable-http")

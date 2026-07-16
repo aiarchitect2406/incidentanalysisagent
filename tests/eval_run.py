@@ -6,6 +6,7 @@ and (b) detect drift before the live presentation.
 """
 from __future__ import annotations
 
+import logging
 import pathlib
 import sys
 
@@ -13,9 +14,9 @@ import vertexai
 from google.adk.evaluation.agent_evaluator import AgentEvaluator
 
 from enterprise_support_agent import config
-from enterprise_support_agent.logging_setup import init_logging
 
-logger = init_logging()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("eval_run")
 
 
 EVAL_SET = pathlib.Path(__file__).resolve().parent.parent / "enterprise_support_agent" / "evals" / "incident_escalation.evalset.json"

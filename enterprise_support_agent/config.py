@@ -54,8 +54,10 @@ def agent_display_name() -> str:
 
 
 def location() -> str:
-    """The location used for Gemini inference. Can be `global` to reach 3.5+ models."""
-    return _from_env("GOOGLE_CLOUD_LOCATION", default="us-central1")
+    """The location used for Gemini inference. Defaults to `global` — confirmed
+    live that gemini-3.5-flash only resolves from there, not regional
+    locations like us-central1."""
+    return _from_env("GOOGLE_CLOUD_LOCATION", default="global")
 
 
 def agent_engine_location() -> str:
@@ -63,23 +65,29 @@ def agent_engine_location() -> str:
     i.e. the `location=` passed to `vertexai.Client(...)` at deploy time.
 
     Deliberately separate from location(): Agent Engine hosting must be a
-    real supported region, but location() may be set to `global` in projects
-    where a Gemini model isn't regionally allowlisted (same reasoning as
-    model_armor_location() below, which stays regional for the same
-    structural reason). Defaults to location() so behavior is unchanged
-    unless a deploy explicitly needs to decouple them.
+    real supported region (unlike location(), which defaults to `global` for
+    the model). Defaults to the literal "us-central1", NOT location() —
+    inheriting location()'s default would silently make this "global" too,
+    which is not a valid Agent Engine hosting region.
     """
-    return _from_env("AGENT_ENGINE_LOCATION", default=location())
+    return _from_env("AGENT_ENGINE_LOCATION", default="us-central1")
+
+
+def skill_registry_enabled() -> bool:
+    """Whether to load the incident-escalator skill from GEAP Skill Registry.
+
+    Defaults to False: on-disk SKILL.md works identically locally and
+    deployed with no GCP dependency. Flip to true only once the skill has
+    actually been published (scripts/lab/_lib/publish_skill.py) and you
+    want live "edit the runbook without redeploying" behavior.
+    """
+    return _from_env("SKILL_REGISTRY_ENABLED", default="false").lower() in {"1", "true", "yes"}
 
 
 def model_armor_location() -> str:
     """Model Armor is a regional service. Keep this pinned to a real region even
     when GOOGLE_CLOUD_LOCATION is `global`."""
     return _from_env("MODEL_ARMOR_LOCATION", default="us-central1")
-
-
-def model_name() -> str:
-    return _from_env("AGENT_MODEL", default="gemini-3.5-flash")
 
 
 def model_armor_template() -> str:
@@ -131,7 +139,7 @@ def mcp_gateway_requires_auth() -> bool:
     controlled via env var at deploy time the way other settings are: this
     function is called from agent.py's module-level `_build_mcp_gateway()`,
     which runs at IMPORT time on the DEPLOYING machine (when
-    deploy_skills_agent.py does `from enterprise_support_agent.agent import
+    scripts/lab/_lib/deploy_agent.py does `from enterprise_support_agent.agent import
     root_agent`), not inside the deployed container — so an env var set only
     in AdkApp's env_vars (which only takes effect once the container starts)
     arrives too late; the connection params (with or without an auth header)
@@ -140,21 +148,6 @@ def mcp_gateway_requires_auth() -> bool:
     at all, even after MCP_GATEWAY_REQUIRES_AUTH=true was added to env_vars.
     """
     return _from_env("MCP_GATEWAY_REQUIRES_AUTH", default="true").lower() in {"1", "true", "yes"}
-
-
-def agent_gateway_url() -> str:
-    """Egress Agent Gateway endpoint fronting the MCP Cloud Run service, once
-    provisioned per docs/agent-gateway-setup.md. Empty until then.
-
-    When set, `agent.py` routes MCP traffic through here instead of straight to
-    the Cloud Run URL, so Model Armor inspection also happens at the network
-    layer (Agent Gateway), not just the app-layer callbacks in callbacks.py.
-    """
-    return _from_env("AGENT_GATEWAY_URL", default="")
-
-
-def mcp_gateway_routes_through_agent_gateway() -> bool:
-    return bool(agent_gateway_url())
 
 
 def skill_registry_skill_name() -> str:

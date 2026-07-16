@@ -22,7 +22,8 @@ import vertexai
 
 from enterprise_support_agent import config
 
-SKILL_DIR = pathlib.Path(__file__).resolve().parent.parent / "enterprise_support_agent" / "skills" / "incident-escalator"
+# scripts/lab/_lib/publish_skill.py -> repo root is four parents up.
+SKILL_DIR = pathlib.Path(__file__).resolve().parents[3] / "enterprise_support_agent" / "skills" / "incident-escalator"
 SKILL_ID = config.skill_registry_skill_name()  # e.g. "incident-escalator-alice"; see config.lab_user_id()
 DISPLAY_NAME = SKILL_ID
 DESCRIPTION = "Enterprise support incident triage with parallel investigation, P0 escalation, and self-healing JVM heap remediation."
